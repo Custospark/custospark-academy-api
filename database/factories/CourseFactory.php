@@ -26,6 +26,7 @@ class CourseFactory extends Factory
             'category' => fake()->word(),
             'status' => Course::STATUS_PUBLISHED,
             'is_self_paced' => false,
+            'delivery_mode' => Course::DELIVERY_LIVE,
             'created_by' => User::factory(),
         ];
     }

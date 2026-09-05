@@ -55,6 +55,7 @@ class CourseController extends Controller
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date'],
             'is_self_paced' => ['nullable', 'boolean'],
+            'delivery_mode' => ['nullable', 'string', 'in:live,self_paced,hybrid'],
             'application_fee' => ['nullable', 'numeric', 'min:0'],
             'tuition_fee' => ['nullable', 'numeric', 'min:0'],
             'certificate_fee' => ['nullable', 'numeric', 'min:0'],
@@ -89,6 +90,7 @@ class CourseController extends Controller
             'start_date' => ['sometimes', 'nullable', 'date'],
             'end_date' => ['sometimes', 'nullable', 'date'],
             'is_self_paced' => ['sometimes', 'boolean'],
+            'delivery_mode' => ['sometimes', 'string', 'in:live,self_paced,hybrid'],
         ]);
 
         return response()->json(['data' => $this->serialize($this->courses->updateCourse($course, $validated))]);
@@ -138,6 +140,7 @@ class CourseController extends Controller
             'start_date' => $course->start_date?->toIso8601String(),
             'end_date' => $course->end_date?->toIso8601String(),
             'is_self_paced' => $course->is_self_paced,
+            'delivery_mode' => $course->delivery_mode,
             'fees' => $course->fees->map(fn ($fee) => [
                 'fee_type' => $fee->fee_type,
                 'amount' => (float) $fee->amount,

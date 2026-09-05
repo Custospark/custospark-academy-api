@@ -21,6 +21,12 @@ class Course extends Model
 
     public const STATUS_ARCHIVED = 'archived';
 
+    public const DELIVERY_LIVE = 'live';
+
+    public const DELIVERY_SELF_PACED = 'self_paced';
+
+    public const DELIVERY_HYBRID = 'hybrid';
+
     protected $fillable = [
         'title',
         'slug',
@@ -31,8 +37,24 @@ class Course extends Model
         'start_date',
         'end_date',
         'is_self_paced',
+        'delivery_mode',
         'created_by',
     ];
+
+    public function isLive(): bool
+    {
+        return $this->delivery_mode === self::DELIVERY_LIVE;
+    }
+
+    public function isSelfPaced(): bool
+    {
+        return $this->delivery_mode === self::DELIVERY_SELF_PACED;
+    }
+
+    public function isHybrid(): bool
+    {
+        return $this->delivery_mode === self::DELIVERY_HYBRID;
+    }
 
     protected function casts(): array
     {

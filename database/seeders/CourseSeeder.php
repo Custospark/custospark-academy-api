@@ -37,6 +37,7 @@ class CourseSeeder extends Seeder
                 'category' => 'Software & Coding',
                 'description' => 'A hands-on introduction to Python. Build small scripts and your first CLI projects from day one, no prior experience needed.',
                 'is_self_paced' => true,
+                'delivery_mode' => Course::DELIVERY_SELF_PACED,
                 'fees' => [
                     'application' => 0,
                     'tuition' => 0,
@@ -49,6 +50,7 @@ class CourseSeeder extends Seeder
                 'category' => 'Business',
                 'description' => 'Plan and run campaigns that convert. Cover social media, email and basic paid ads with a project you can add to your portfolio.',
                 'is_self_paced' => false,
+                'delivery_mode' => Course::DELIVERY_LIVE,
                 'fees' => [
                     'application' => 25000,
                     'tuition' => 0,
