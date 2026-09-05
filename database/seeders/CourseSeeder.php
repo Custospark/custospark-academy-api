@@ -14,8 +14,16 @@ class CourseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
+    /**
+     * Dev-only seeding: two test courses so the catalog has something to
+     * render during development. Guarded to local/dev environments only.
+     */
     public function run(): void
     {
+        if (! app()->environment(['local', 'dev', 'testing'])) {
+            return;
+        }
+
         $admin = User::query()->where('role', User::ROLE_ADMIN)->first()
             ?? User::factory()->admin()->create([
                 'name' => 'Academy Admin',
@@ -24,51 +32,27 @@ class CourseSeeder extends Seeder
 
         $courses = [
             [
-                'title' => 'Data Science',
-                'slug' => 'data-science',
+                'title' => 'Python for Beginners',
+                'slug' => 'python-for-beginners',
                 'category' => 'Software & Coding',
-                'description' => 'Master data analysis, statistics and visualisation to turn raw data into decisions. Hands-on projects with real datasets from week one.',
-                'is_self_paced' => false,
-                'fees' => [
-                    'application' => 50000,
-                    'tuition' => 900000,
-                    'certificate' => 50000,
-                ],
-            ],
-            [
-                'title' => 'Machine Learning',
-                'slug' => 'machine-learning',
-                'category' => 'AI & Technology',
-                'description' => 'Build and train models that learn from data. Cover supervised and unsupervised learning with practical projects you can put on your portfolio.',
+                'description' => 'A hands-on introduction to Python. Build small scripts and your first CLI projects from day one, no prior experience needed.',
                 'is_self_paced' => true,
                 'fees' => [
-                    'application' => 50000,
-                    'tuition' => 1100000,
-                    'certificate' => 50000,
+                    'application' => 0,
+                    'tuition' => 0,
+                    'certificate' => 0,
                 ],
             ],
             [
-                'title' => 'Mobile Development',
-                'slug' => 'mobile-development',
-                'category' => 'Mobile Development',
-                'description' => 'Design, build and ship mobile apps end to end. Learn cross-platform development and publish real apps to app stores.',
+                'title' => 'Digital Marketing Essentials',
+                'slug' => 'digital-marketing-essentials',
+                'category' => 'Business',
+                'description' => 'Plan and run campaigns that convert. Cover social media, email and basic paid ads with a project you can add to your portfolio.',
                 'is_self_paced' => false,
                 'fees' => [
-                    'application' => 50000,
-                    'tuition' => 950000,
-                    'certificate' => 50000,
-                ],
-            ],
-            [
-                'title' => 'Web Development',
-                'slug' => 'web-development',
-                'category' => 'Software & Coding',
-                'description' => 'Go from zero to launching production web applications. Master HTML, CSS, JavaScript and modern frameworks with guided projects.',
-                'is_self_paced' => true,
-                'fees' => [
-                    'application' => 50000,
-                    'tuition' => 850000,
-                    'certificate' => 50000,
+                    'application' => 25000,
+                    'tuition' => 0,
+                    'certificate' => 25000,
                 ],
             ],
         ];
