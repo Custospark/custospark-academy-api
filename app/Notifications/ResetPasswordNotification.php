@@ -31,19 +31,13 @@ class ResetPasswordNotification extends Notification
         }
         $resetUrl = $frontendUrl.'/reset-password?token='.$this->token.'&email='.urlencode($this->email);
 
-        $logoDataUri = null;
-        $logoPath = public_path('images/custospark-academy-logo-email.png');
-        if (file_exists($logoPath)) {
-            $logoDataUri = 'data:image/png;base64,'.base64_encode((string) file_get_contents($logoPath));
-        }
-
         return (new MailMessage)
             ->subject('Reset Your Custospark Academy Password')
             ->view('emails.standard', [
                 'title' => 'Reset Your Custospark Academy Password',
                 'brandName' => 'Custospark Academy',
                 'tagline' => 'Learn. Build. Launch.',
-                'logoUrl' => $logoDataUri,
+                'logoUrl' => null,
                 'mailBody' => '
                     <p>Hello <strong>'.e($notifiable->name).'</strong>,</p>
                     <p>You are receiving this email because we received a password reset request for your Custospark Academy account.</p>
