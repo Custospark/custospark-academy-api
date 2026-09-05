@@ -6,7 +6,9 @@ use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\EnrollmentController;
 use App\Http\Controllers\Api\InstructorController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PlatformController;
 use App\Http\Controllers\Api\ScheduleController;
+use App\Http\Controllers\Api\UserAdminController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -50,6 +52,11 @@ Route::prefix('v1')->group(function () {
             Route::post('instructors', [InstructorController::class, 'store']);
             Route::put('instructors/{id}', [InstructorController::class, 'update']);
             Route::delete('instructors/{id}', [InstructorController::class, 'destroy']);
+
+            Route::get('users', [UserAdminController::class, 'index']);
+            Route::put('users/{id}', [UserAdminController::class, 'update']);
+
+            Route::get('stats', [PlatformController::class, 'stats']);
         });
     });
 
