@@ -17,19 +17,19 @@ class CourseService
         protected ScheduleRepositoryInterface $schedules,
     ) {}
 
-    public function publishedCourses(): array
+    public function publishedCourses(?string $search = null): array
     {
-        return $this->courses->published()->all();
+        return $this->courses->published($search)->all();
     }
 
-    public function allCourses(): array
+    public function allCourses(?string $search = null): array
     {
-        return $this->courses->all()->all();
+        return $this->courses->all($search)->all();
     }
 
-    public function coursesForCreator(int $userId): array
+    public function coursesForCreator(int $userId, ?string $search = null): array
     {
-        return $this->courses->forCreator($userId)->all();
+        return $this->courses->forCreator($userId, $search)->all();
     }
 
     public function findCourse(int $id): ?Course

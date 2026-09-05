@@ -22,7 +22,10 @@ class InstructorController extends Controller
     {
         $this->requireAdmin();
 
-        $instructors = $this->users->findByRole(User::ROLE_INSTRUCTOR);
+        $search = $request->query('q');
+        $instructors = $search !== null && trim($search) !== ''
+            ? $this->users->findByRoleAndSearch(User::ROLE_INSTRUCTOR, $search)
+            : $this->users->findByRole(User::ROLE_INSTRUCTOR);
 
         return response()->json([
             'data' => $instructors->map(fn (User $user) => $this->serialize($user))->values(),

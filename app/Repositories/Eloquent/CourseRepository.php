@@ -7,30 +7,29 @@ namespace App\Repositories\Eloquent;
 use App\Models\Course;
 use App\Repositories\Contracts\CourseRepositoryInterface;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
 class CourseRepository implements CourseRepositoryInterface
 {
-    public function published(): Collection
+    public function published(?string $search = null): Collection
     {
-        return Course::query()
-            ->where('status', Course::STATUS_PUBLISHED)
-            ->with('fees')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        return $this->applySearch(
+            Course::query()->where('status', Course::STATUS_PUBLISHED),
+            $search,
+        )->get();
     }
 
-    public function all(): Collection
+    public function all(?string $search = null): Collection
     {
-        return Course::query()->with('fees')->orderBy('created_at', 'desc')->get();
+        return $this->applySearch(Course::query(), $search)->get();
     }
 
-    public function forCreator(int $userId): Collection
+    public function forCreator(int $userId, ?string $search = null): Collection
     {
-        return Course::query()
-            ->where('created_by', $userId)
-            ->with('fees')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        return $this->applySearch(
+            Course::query()->where('created_by', $userId),
+            $search,
+        )->get();
     }
 
     public function findBySlug(string $slug): ?Course
@@ -58,5 +57,22 @@ class CourseRepository implements CourseRepositoryInterface
     public function delete(Course $course): bool
     {
         return (bool) $course->delete();
+    }
+
+    protected function applySearch(Builder $query, ?string $search): Builder
+    {
+        $query->with('fees')->orderBy('created_at', 'desc');
+
+        if ($search !== null && trim($search) !== '') {
+            $term = '%'.addcslashes(trim($search), '%_\\').'%';
+            $query->where(function (Builder $q) use ($term): void {
+                $q->where('title', 'like', $term)
+                    ->orWhere('description', 'like', $term)
+                    ->orWhere('category', 'like', $term)
+                    ->orWhere('slug', 'like', $term);
+            });
+        }
+
+        return $query;
     }
 }

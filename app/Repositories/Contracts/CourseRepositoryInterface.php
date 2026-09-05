@@ -10,13 +10,13 @@ use Illuminate\Database\Eloquent\Collection;
 interface CourseRepositoryInterface
 {
     /** @return Collection<int, Course> */
-    public function published(): Collection;
+    public function published(?string $search = null): Collection;
 
     /** @return Collection<int, Course> */
-    public function all(): Collection;
+    public function all(?string $search = null): Collection;
 
     /** @return Collection<int, Course> */
-    public function forCreator(int $userId): Collection;
+    public function forCreator(int $userId, ?string $search = null): Collection;
 
     public function findBySlug(string $slug): ?Course;
 

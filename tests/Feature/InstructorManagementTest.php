@@ -108,6 +108,43 @@ class InstructorManagementTest extends TestCase
         $this->assertSoftDeleted('users', ['id' => $instructor->id]);
     }
 
+    public function test_admin_can_search_instructors(): void
+    {
+        $admin = User::factory()->admin()->create();
+        User::factory()->instructor()->create(['name' => 'Alice Wonder']);
+        User::factory()->instructor()->create(['name' => 'Bob Builder']);
+
+        $response = $this->actingAsUser($admin)
+            ->getJson('/api/v1/admin/instructors?q=alice')
+            ->assertOk();
+
+        $names = collect($response->json('data'))->pluck('name')->all();
+        $this->assertContains('Alice Wonder', $names);
+        $this->assertNotContains('Bob Builder', $names);
+    }
+
+    public function test_course_catalog_search_filters_by_title_and_category(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $this->courseFor($admin); // created with random factory title/category
+
+        Course::factory()->published()->create([
+            'title' => 'Data Science Bootcamp',
+            'category' => 'Software & Coding',
+            'created_by' => $admin->id,
+        ]);
+        Course::factory()->published()->create([
+            'title' => 'Digital Marketing',
+            'category' => 'Business',
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->getJson('/api/v1/courses?q=data')->assertOk();
+        $titles = collect($response->json('data'))->pluck('title')->all();
+        $this->assertContains('Data Science Bootcamp', $titles);
+        $this->assertNotContains('Digital Marketing', $titles);
+    }
+
     public function test_non_admin_cannot_manage_instructors(): void
     {
         $instructor = User::factory()->instructor()->create();

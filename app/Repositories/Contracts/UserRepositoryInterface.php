@@ -15,6 +15,9 @@ interface UserRepositoryInterface
 
     public function findByRole(string $role): Collection;
 
+    /** @return Collection<int, User> */
+    public function findByRoleAndSearch(string $role, string $search): Collection;
+
     public function create(array $data): User;
 
     public function update(User $user, array $data): User;

@@ -19,11 +19,12 @@ class CourseController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
+        $search = $request->query('q');
 
         $courses = match (true) {
-            $user?->isAdmin() => $this->courses->allCourses(),
-            $user?->isInstructor() => $this->courses->coursesForCreator((int) $user->id),
-            default => $this->courses->publishedCourses(),
+            $user?->isAdmin() => $this->courses->allCourses($search),
+            $user?->isInstructor() => $this->courses->coursesForCreator((int) $user->id, $search),
+            default => $this->courses->publishedCourses($search),
         };
 
         return response()->json(['data' => array_map(
@@ -53,9 +54,11 @@ class CourseController extends Controller
             abort(401);
         }
 
+        $search = $request->query('q');
+
         $courses = $user->isAdmin()
-            ? $this->courses->allCourses()
-            : $this->courses->coursesForCreator((int) $user->id);
+            ? $this->courses->allCourses($search)
+            : $this->courses->coursesForCreator((int) $user->id, $search);
 
         return response()->json(['data' => array_map(
             fn (Course $c) => $this->serialize($c),
