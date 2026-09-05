@@ -176,14 +176,22 @@ class CourseContentController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'type' => ['required', 'string', 'in:book,link,video,file,article'],
             'url' => ['nullable', 'string'],
-            'file_path' => ['nullable', 'string'],
+            'file' => ['nullable', 'file', 'max:20480'],
             'description' => ['nullable', 'string'],
             'lesson_id' => ['nullable', 'integer', 'exists:lessons,id'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
+        $filePath = null;
+        if ($request->hasFile('file')) {
+            $filePath = $request->file('file')->store('resources', 'public');
+        }
+
         return response()->json([
-            'data' => $this->serializeResource($this->content->createResource($courseId, $validated)),
+            'data' => $this->serializeResource($this->content->createResource($courseId, [
+                ...$validated,
+                'file_path' => $filePath ?? $validated['url'] ?? null,
+            ])),
         ], 201);
     }
 
@@ -196,11 +204,15 @@ class CourseContentController extends Controller
             'title' => ['sometimes', 'string', 'max:255'],
             'type' => ['sometimes', 'string', 'in:book,link,video,file,article'],
             'url' => ['sometimes', 'nullable', 'string'],
-            'file_path' => ['sometimes', 'nullable', 'string'],
+            'file' => ['sometimes', 'file', 'max:20480'],
             'description' => ['sometimes', 'nullable', 'string'],
             'lesson_id' => ['sometimes', 'nullable', 'integer', 'exists:lessons,id'],
             'sort_order' => ['sometimes', 'integer'],
         ]);
+
+        if ($request->hasFile('file')) {
+            $validated['file_path'] = $request->file('file')->store('resources', 'public');
+        }
 
         return response()->json([
             'data' => $this->serializeResource($this->content->updateResource($resource, $validated)),

@@ -145,6 +145,58 @@ class InstructorManagementTest extends TestCase
         $this->assertNotContains('Digital Marketing', $titles);
     }
 
+    public function test_course_slug_is_auto_generated_and_deduplicated(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $first = $this->actingAsUser($admin)
+            ->postJson('/api/v1/admin/courses', ['title' => 'Python Mastery'])
+            ->assertCreated()
+            ->json('data');
+        $this->assertSame('python-mastery', $first['slug']);
+
+        $second = $this->actingAsUser($admin)
+            ->postJson('/api/v1/admin/courses', ['title' => 'Python Mastery'])
+            ->assertCreated()
+            ->json('data');
+        $this->assertSame('python-mastery-2', $second['slug']);
+    }
+
+    public function test_course_code_and_prerequisites_are_optional(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $course = $this->actingAsUser($admin)
+            ->postJson('/api/v1/admin/courses', [
+                'title' => 'Advanced Django',
+                'course_code' => 'DJ-301',
+                'prerequisites' => 'Basic Python',
+                'level' => 'advanced',
+                'duration_hours' => 40,
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertSame('DJ-301', $course['course_code']);
+        $this->assertSame('Basic Python', $course['prerequisites']);
+        $this->assertSame('advanced', $course['level']);
+    }
+
+    public function test_course_update_accepts_null_optional_fields(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $course = $this->courseFor($admin);
+
+        $this->actingAsUser($admin)
+            ->putJson("/api/v1/admin/courses/{$course->id}", [
+                'course_code' => null,
+                'prerequisites' => null,
+                'title' => 'Updated Title',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.title', 'Updated Title');
+    }
+
     public function test_non_admin_cannot_manage_instructors(): void
     {
         $instructor = User::factory()->instructor()->create();

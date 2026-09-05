@@ -36,6 +36,7 @@ class Course extends Model
     protected $fillable = [
         'title',
         'slug',
+        'course_code',
         'description',
         'category',
         'cover_url',
