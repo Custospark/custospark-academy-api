@@ -68,6 +68,34 @@ class AuthController extends Controller
         return response()->json(['data' => null, 'message' => 'Logged out.']);
     }
 
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+        ]);
+
+        $status = $this->auth->sendPasswordResetLink($validated['email']);
+
+        return response()->json([
+            'message' => 'If that email address is associated with an account, a password reset link has been sent.',
+        ]);
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'token' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $this->auth->resetPassword($validated);
+
+        return response()->json([
+            'message' => 'Password has been reset successfully.',
+        ]);
+    }
+
     private function serializeUser(User $user): array
     {
         return [
