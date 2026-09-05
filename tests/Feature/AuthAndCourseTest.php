@@ -35,17 +35,26 @@ class AuthAndCourseTest extends TestCase
 
     public function test_duplicate_registration_is_rejected(): void
     {
-        $this->postJson('/api/v1/auth/register', [
+        $payload = [
             'name' => 'Jane',
             'email' => 'jane@example.com',
             'password' => 'password123',
-        ])->assertCreated();
+            'phone' => '+256700000000',
+        ];
 
+        $this->postJson('/api/v1/auth/register', $payload)->assertCreated();
+
+        $this->postJson('/api/v1/auth/register', $payload)->assertStatus(422);
+    }
+
+    public function test_registration_requires_phone(): void
+    {
         $this->postJson('/api/v1/auth/register', [
             'name' => 'Jane',
             'email' => 'jane@example.com',
             'password' => 'password123',
-        ])->assertStatus(422);
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors('phone');
     }
 
     public function test_me_returns_authenticated_user(): void
