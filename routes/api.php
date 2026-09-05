@@ -40,6 +40,7 @@ Route::prefix('v1')->group(function () {
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
 
         // Learner course actions: submissions, attempts, progress
+        Route::get('courses/{courseId}/content', [LearnerContentController::class, 'content']);
         Route::post('courses/{courseId}/submit/{type}/{typeId}', [LearnerContentController::class, 'submit']);
         Route::post('courses/{courseId}/attempt/{type}/{typeId}', [LearnerContentController::class, 'submitAttempt']);
         Route::post('courses/{courseId}/lessons/{lessonId}/progress', [LearnerContentController::class, 'markLesson']);

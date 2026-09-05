@@ -9,6 +9,8 @@ use App\Models\CourseFee;
 use App\Models\Enrollment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CourseGradingProgressTest extends TestCase
@@ -134,5 +136,69 @@ class CourseGradingProgressTest extends TestCase
         $this->assertSame(4, $attempt['score']);
         $this->assertSame(4, $attempt['max_score']);
         $this->assertTrue($attempt['is_passed']);
+    }
+
+    public function test_enrolled_learner_can_view_course_content_without_answers(): void
+    {
+        $instructor = User::factory()->instructor()->create();
+        $learner = User::factory()->learner()->create();
+        $course = Course::factory()->published()->create(['created_by' => $instructor->id]);
+        CourseFee::factory()->tuition()->create(['course_id' => $course->id, 'amount' => 500000]);
+        Enrollment::factory()->create(['course_id' => $course->id, 'user_id' => $learner->id]);
+
+        $this->actingAsUser($instructor)->postJson("/api/v1/admin/courses/{$course->id}/quizzes", [
+            'title' => 'Quiz',
+            'questions' => [['question' => 'Q', 'correct_answer' => 'secret', 'points' => 1]],
+        ]);
+
+        $data = $this->actingAsUser($learner)
+            ->getJson("/api/v1/courses/{$course->id}/content")
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame('Quiz', $data['quizzes'][0]['title']);
+        $this->assertArrayNotHasKey('correct_answer', $data['quizzes'][0]['questions'][0]);
+    }
+
+    public function test_unenrolled_learner_cannot_view_course_content(): void
+    {
+        $instructor = User::factory()->instructor()->create();
+        $learner = User::factory()->learner()->create();
+        $course = Course::factory()->published()->create(['created_by' => $instructor->id]);
+
+        $this->actingAsUser($learner)
+            ->getJson("/api/v1/courses/{$course->id}/content")
+            ->assertStatus(403);
+    }
+
+    public function test_learner_can_upload_a_file_with_submission(): void
+    {
+        Storage::fake('public');
+        $instructor = User::factory()->instructor()->create();
+        $learner = User::factory()->learner()->create();
+        $course = Course::factory()->published()->create(['created_by' => $instructor->id]);
+        CourseFee::factory()->tuition()->create(['course_id' => $course->id, 'amount' => 500000]);
+        Enrollment::factory()->create(['course_id' => $course->id, 'user_id' => $learner->id]);
+
+        $assignment = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/assignments", [
+                'title' => 'Upload a book review',
+                'submission_type' => 'file',
+                'max_score' => 100,
+            ])
+            ->json('data');
+
+        $file = UploadedFile::fake()->create('review.pdf', 100);
+
+        $submission = $this->actingAsUser($learner)
+            ->post("/api/v1/courses/{$course->id}/submit/assignment/{$assignment['id']}", [
+                'content' => 'Here is my review',
+                'file' => $file,
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertNotNull($submission['file_path']);
+        Storage::disk('public')->assertExists($submission['file_path']);
     }
 }
