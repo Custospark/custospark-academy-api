@@ -27,6 +27,12 @@ class Course extends Model
 
     public const DELIVERY_HYBRID = 'hybrid';
 
+    public const LEVEL_BEGINNER = 'beginner';
+
+    public const LEVEL_INTERMEDIATE = 'intermediate';
+
+    public const LEVEL_ADVANCED = 'advanced';
+
     protected $fillable = [
         'title',
         'slug',
@@ -38,6 +44,12 @@ class Course extends Model
         'end_date',
         'is_self_paced',
         'delivery_mode',
+        'level',
+        'language',
+        'duration_hours',
+        'target_audience',
+        'prerequisites',
+        'tags',
         'created_by',
     ];
 
@@ -62,6 +74,7 @@ class Course extends Model
             'start_date' => 'datetime',
             'end_date' => 'datetime',
             'is_self_paced' => 'boolean',
+            'tags' => 'array',
         ];
     }
 
@@ -97,6 +110,54 @@ class Course extends Model
     public function isPublished(): bool
     {
         return $this->status === self::STATUS_PUBLISHED;
+    }
+
+    /** @return HasMany<CourseSection, $this> */
+    public function sections(): HasMany
+    {
+        return $this->hasMany(CourseSection::class)->orderBy('sort_order');
+    }
+
+    /** @return HasMany<Lesson, $this> */
+    public function lessons(): HasMany
+    {
+        return $this->hasMany(Lesson::class)->orderBy('sort_order');
+    }
+
+    /** @return HasMany<LearningOutcome, $this> */
+    public function learningOutcomes(): HasMany
+    {
+        return $this->hasMany(LearningOutcome::class)->orderBy('sort_order');
+    }
+
+    /** @return HasMany<Resource, $this> */
+    public function resources(): HasMany
+    {
+        return $this->hasMany(Resource::class)->orderBy('sort_order');
+    }
+
+    /** @return HasMany<Quiz, $this> */
+    public function quizzes(): HasMany
+    {
+        return $this->hasMany(Quiz::class)->orderBy('sort_order');
+    }
+
+    /** @return HasMany<Exercise, $this> */
+    public function exercises(): HasMany
+    {
+        return $this->hasMany(Exercise::class)->orderBy('sort_order');
+    }
+
+    /** @return HasMany<Exam, $this> */
+    public function exams(): HasMany
+    {
+        return $this->hasMany(Exam::class)->orderBy('sort_order');
+    }
+
+    /** @return HasMany<Assignment, $this> */
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(Assignment::class)->orderBy('sort_order');
     }
 
     public function fee(string $feeType): ?CourseFee

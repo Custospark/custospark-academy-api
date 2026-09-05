@@ -2,9 +2,11 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CertificateController;
+use App\Http\Controllers\Api\CourseContentController;
 use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\EnrollmentController;
 use App\Http\Controllers\Api\InstructorController;
+use App\Http\Controllers\Api\LearnerContentController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PlatformController;
 use App\Http\Controllers\Api\ScheduleController;
@@ -37,6 +39,12 @@ Route::prefix('v1')->group(function () {
         Route::post('enrollments/{enrollmentId}/certificate', [CertificateController::class, 'issue']);
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
 
+        // Learner course actions: submissions, attempts, progress
+        Route::post('courses/{courseId}/submit/{type}/{typeId}', [LearnerContentController::class, 'submit']);
+        Route::post('courses/{courseId}/attempt/{type}/{typeId}', [LearnerContentController::class, 'submitAttempt']);
+        Route::post('courses/{courseId}/lessons/{lessonId}/progress', [LearnerContentController::class, 'markLesson']);
+        Route::get('courses/{courseId}/progress', [LearnerContentController::class, 'progress']);
+
         Route::prefix('admin')->group(function () {
             Route::get('courses', [CourseController::class, 'manageIndex']);
             Route::get('enrollments', [EnrollmentController::class, 'adminIndex']);
@@ -57,6 +65,33 @@ Route::prefix('v1')->group(function () {
             Route::put('users/{id}', [UserAdminController::class, 'update']);
 
             Route::get('stats', [PlatformController::class, 'stats']);
+
+            // Course content builder
+            Route::get('courses/{courseId}/content', [CourseContentController::class, 'show']);
+            Route::post('courses/{courseId}/sections', [CourseContentController::class, 'storeSection']);
+            Route::put('courses/{courseId}/sections/{sectionId}', [CourseContentController::class, 'updateSection']);
+            Route::delete('courses/{courseId}/sections/{sectionId}', [CourseContentController::class, 'destroySection']);
+            Route::post('courses/{courseId}/lessons', [CourseContentController::class, 'storeLesson']);
+            Route::put('courses/{courseId}/lessons/{lessonId}', [CourseContentController::class, 'updateLesson']);
+            Route::delete('courses/{courseId}/lessons/{lessonId}', [CourseContentController::class, 'destroyLesson']);
+            Route::post('courses/{courseId}/outcomes', [CourseContentController::class, 'storeOutcome']);
+            Route::delete('courses/{courseId}/outcomes/{outcomeId}', [CourseContentController::class, 'destroyOutcome']);
+            Route::post('courses/{courseId}/resources', [CourseContentController::class, 'storeResource']);
+            Route::put('courses/{courseId}/resources/{resourceId}', [CourseContentController::class, 'updateResource']);
+            Route::delete('courses/{courseId}/resources/{resourceId}', [CourseContentController::class, 'destroyResource']);
+            Route::post('courses/{courseId}/quizzes', [CourseContentController::class, 'storeQuiz']);
+            Route::put('courses/{courseId}/quizzes/{quizId}', [CourseContentController::class, 'updateQuiz']);
+            Route::delete('courses/{courseId}/quizzes/{quizId}', [CourseContentController::class, 'destroyQuiz']);
+            Route::post('courses/{courseId}/exercises', [CourseContentController::class, 'storeExercise']);
+            Route::put('courses/{courseId}/exercises/{exerciseId}', [CourseContentController::class, 'updateExercise']);
+            Route::delete('courses/{courseId}/exercises/{exerciseId}', [CourseContentController::class, 'destroyExercise']);
+            Route::post('courses/{courseId}/exams', [CourseContentController::class, 'storeExam']);
+            Route::put('courses/{courseId}/exams/{examId}', [CourseContentController::class, 'updateExam']);
+            Route::delete('courses/{courseId}/exams/{examId}', [CourseContentController::class, 'destroyExam']);
+            Route::post('courses/{courseId}/assignments', [CourseContentController::class, 'storeAssignment']);
+            Route::put('courses/{courseId}/assignments/{assignmentId}', [CourseContentController::class, 'updateAssignment']);
+            Route::delete('courses/{courseId}/assignments/{assignmentId}', [CourseContentController::class, 'destroyAssignment']);
+            Route::put('courses/{courseId}/submissions/{submissionId}/grade', [CourseContentController::class, 'gradeSubmission']);
         });
     });
 
