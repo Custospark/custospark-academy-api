@@ -18,9 +18,13 @@ class CourseController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $courses = $request->user()?->isAdmin()
-            ? $this->courses->allCourses()
-            : $this->courses->publishedCourses();
+        $user = $request->user();
+
+        $courses = match (true) {
+            $user?->isAdmin() => $this->courses->allCourses(),
+            $user?->isInstructor() => $this->courses->coursesForCreator((int) $user->id),
+            default => $this->courses->publishedCourses(),
+        };
 
         return response()->json(['data' => array_map(
             fn (Course $c) => $this->serialize($c),
@@ -40,6 +44,23 @@ class CourseController extends Controller
         }
 
         return response()->json(['data' => $this->serialize($course, withSchedule: true)]);
+    }
+
+    public function manageIndex(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if ($user === null) {
+            abort(401);
+        }
+
+        $courses = $user->isAdmin()
+            ? $this->courses->allCourses()
+            : $this->courses->coursesForCreator((int) $user->id);
+
+        return response()->json(['data' => array_map(
+            fn (Course $c) => $this->serialize($c),
+            $courses,
+        )]);
     }
 
     public function store(Request $request): JsonResponse
@@ -80,6 +101,7 @@ class CourseController extends Controller
         if ($course === null) {
             abort(404, 'Course not found.');
         }
+        $this->authorizeCourseOwnership($course, $request->user());
 
         $validated = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
@@ -104,6 +126,7 @@ class CourseController extends Controller
         if ($course === null) {
             abort(404, 'Course not found.');
         }
+        $this->authorizeCourseOwnership($course, $request->user());
 
         $this->courses->deleteCourse($course);
 
@@ -122,8 +145,27 @@ class CourseController extends Controller
 
     private function authorizeManage(): void
     {
-        if (! request()->user()?->isAdmin()) {
-            abort(403, 'Only admins can manage courses.');
+        $user = request()->user();
+        if ($user?->isAdmin() || $user?->isInstructor()) {
+            return;
+        }
+
+        abort(403, 'Only admins and instructors can manage courses.');
+    }
+
+    private function authorizeCourseOwnership(Course $course, ?\App\Models\User $user): void
+    {
+        if ($user === null) {
+            abort(401);
+        }
+
+        // Admins manage any course; instructors only their own.
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        if ((int) $course->created_by !== (int) $user->id) {
+            abort(403, 'You can only manage courses you created.');
         }
     }
 

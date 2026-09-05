@@ -27,6 +27,11 @@ class CourseService
         return $this->courses->all()->all();
     }
 
+    public function coursesForCreator(int $userId): array
+    {
+        return $this->courses->forCreator($userId)->all();
+    }
+
     public function findCourse(int $id): ?Course
     {
         return $this->courses->find($id);

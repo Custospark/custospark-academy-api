@@ -24,6 +24,15 @@ class CourseRepository implements CourseRepositoryInterface
         return Course::query()->with('fees')->orderBy('created_at', 'desc')->get();
     }
 
+    public function forCreator(int $userId): Collection
+    {
+        return Course::query()
+            ->where('created_by', $userId)
+            ->with('fees')
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
     public function findBySlug(string $slug): ?Course
     {
         return Course::query()->with('fees')->where('slug', $slug)->first();

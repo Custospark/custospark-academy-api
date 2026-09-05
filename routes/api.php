@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CertificateController;
 use App\Http\Controllers\Api\CourseController;
 use App\Http\Controllers\Api\EnrollmentController;
+use App\Http\Controllers\Api\InstructorController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ScheduleController;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,7 @@ Route::prefix('v1')->group(function () {
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
 
         Route::prefix('admin')->group(function () {
+            Route::get('courses', [CourseController::class, 'manageIndex']);
             Route::get('enrollments', [EnrollmentController::class, 'adminIndex']);
             Route::post('enrollments/{id}/admit', [EnrollmentController::class, 'admit']);
             Route::post('enrollments/{id}/reject', [EnrollmentController::class, 'reject']);
@@ -43,6 +45,11 @@ Route::prefix('v1')->group(function () {
             Route::put('courses/{id}', [CourseController::class, 'update']);
             Route::delete('courses/{id}', [CourseController::class, 'destroy']);
             Route::post('courses/{courseId}/schedules', [ScheduleController::class, 'store']);
+
+            Route::get('instructors', [InstructorController::class, 'index']);
+            Route::post('instructors', [InstructorController::class, 'store']);
+            Route::put('instructors/{id}', [InstructorController::class, 'update']);
+            Route::delete('instructors/{id}', [InstructorController::class, 'destroy']);
         });
     });
 

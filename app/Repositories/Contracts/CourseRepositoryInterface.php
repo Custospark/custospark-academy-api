@@ -15,6 +15,9 @@ interface CourseRepositoryInterface
     /** @return Collection<int, Course> */
     public function all(): Collection;
 
+    /** @return Collection<int, Course> */
+    public function forCreator(int $userId): Collection;
+
     public function findBySlug(string $slug): ?Course;
 
     public function find(int $id): ?Course;
