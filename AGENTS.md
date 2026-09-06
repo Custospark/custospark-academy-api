@@ -34,7 +34,7 @@ same discipline, same gates. When in doubt, follow Custosell patterns.
 | 12 | FE/BE stay in sync - API contracts reviewed across both stacks. |
 | 13 | **File size hard limit: 500 lines - refactor, never revert.** Split into modular files. |
 | 14 | Stage, commit, push after every change. Never `git add -A` - only exact paths. |
-| 15 | Deployment guardrails: read `../DEPLOYMENT.md` before any deploy. Migrations with `--force` only. Never destructive migrations. |
+| 15 | Deployment guardrails: read `Backend/DEPLOYMENT.md` before any deploy — §5A is the canonical second-and-onward runbook (staging OR production); §6 is first-time setup only. Migrations with `--force` only, never destructive migrations, never `key:generate` post-launch, storage link via `ln -s` (host has `exec()` disabled). |
 | 16 | **Never edit an existing migration.** Add a new forward migration. |
 
 ## Entity Creation Order (Custospark Academy)

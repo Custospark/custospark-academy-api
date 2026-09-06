@@ -133,6 +133,86 @@ and **owner approval**.
 
 ---
 
+## 5A. SECOND deployment — production or staging (DevOps runbook)
+
+> Everything below is ONE deploy of an already-running backend + frontend to a single
+> environment. Use it for every deploy after the first (which used §6). First produce
+> and get Oscar-approval for the §5 plan, then run **top-to-bottom**.
+> Old §7/§8 have been replaced by this section — this is the canonical seconds-and-onward path.
+
+### Environment map (substitute `<ENV>`)
+
+| `<ENV>` | backend app dir (`~/domains/`) | web docroot (`~/domains/custospark.com/public_html/`) | build source pack (`public/`) | admin-credential backup |
+|---|---|---|---|---|
+| `staging` | `academy-staging-api.custospark.com` | `academy-staging` | `staging` | `~/domains/backups/academy-staging/admin-credential.txt` |
+| `production` | `academy-api.custospark.com` | `academy` | `production` | `~/domains/backups/academy-production/admin-credential.txt` |
+
+### 5A.1 Pre-flight (local)
+
+- `Backend`: `git status` clean, on `master`; required gates green (`composer vera:fast`, and if migrations/routes changed also the §4 extended checks). If frontend changed too: `Frontend` `npm run vera:fast` green.
+- Push **both** repos to GitHub BEFORE deploying — the server only ever mirrors `origin/master`:
+  - `Backend`: `git push origin master`
+  - `Frontend`: `git push origin master`
+- Confirm no destructive migration in the diff (regex scan: `introduce|drop|refresh`). Every migration runs with `--force`.
+- `Backend` repo has `git config http.postBuffer 524288000` set (large builds otherwise 408 on push). Verify if you hit 408.
+
+### 5A.2 Ship the web build (ONLY if frontend code changed)
+
+Local, from `Frontend/`:
+
+```bash
+npm run deploy:web:<ENV>   # run production|staging; builds -> Backend/public/<ENV>, commits that exact path, pushes Backend
+```
+
+This writes ONE commit in the Backend repo titled `deploy(web): <env> build <version> under public/<ENV>` and pushes `master` (auto-commit path is exactly `public/<ENV>`; never `git add -A`).
+
+### 5A.3 Deploy backend on the server
+
+From `Backend/`, via the runbook SSH helper (creds from `.env`, never printed):
+
+```bash
+python scripts/ssh_run.py "
+  set -e
+  cd /home/u214605677/domains/<APP-DIR>            # from the map above
+  git fetch origin && git reset --hard origin/master
+  git status --short | grep -v '^??'               # must be empty (tracked files clean)
+  # [if composer.lock changed in this deploy, or vendor/ is missing]
+  /usr/bin/php -d memory_limit=512M /usr/local/bin/composer install --no-dev --prefer-dist --no-interaction
+  # [if migrations changed in this deploy]
+  /usr/bin/php artisan migrate --force
+  /usr/bin/php artisan config:clear && /usr/bin/php artisan route:clear
+  /usr/bin/php artisan view:clear && /usr/bin/php artisan optimize:clear
+"
+```
+
+Non-negotiables on the server:
+- **NEVER run `key:generate` again** — it invalidates the APP_KEY (sessions, personal access tokens, password resets) for that environment.
+- **`exec()` is disabled on this host** → `artisan storage:link` fails. The public storage link must instead be ensured manually:
+  ```bash
+  [ -L public/storage ] || ln -s "$PWD/storage/app/public" public/storage
+  ```
+- If `.env.example` or any config key changed, regenerate + upload that env's `.env` via `scripts/push_env.py <ENV>` **instead of** editing `.env` on the server (see §2A). Cloud keys change → same path.
+
+### 5A.4 Serve the web build (ONLY if frontend changed)
+
+```bash
+python scripts/ssh_run.py "
+  set -e
+  cd /home/u214605677/domains/custospark.com/public_html
+  rm -rf <WEB-DOCROOT> && mkdir -p <WEB-DOCROOT>
+  cp -rT /home/u214605677/domains/<APP-DIR>/public/<ENV> <WEB-DOCROOT>
+"
+```
+
+- **`cp -rT`, never `cp -r` globs** — the web pack contains a dotfile `.htaccess` that globs silently drop (the SPA fallback silently dies without it).
+- Only the single `<WEB-DOCROOT>` entry in the shared docroot is touched. All other products and `custospark.com`'s own files stay untouched.
+
+### 5A.5 Verify then report
+
+Run §8.4 verification for `<ENV>` (root/deep HTTP 200, JS `application/x-javascript` not `text/html`, 0 missing assets, API base = `<ENV>`'s `academy[-staging]-api.custospark.com/api/v1`, shared-docroot entries intact, 0 new `laravel-*.log` errors). Rollback uses §9 paths. Report per §13 template.
+
+---
+
 ## 6. First-time deploy (this deployment — once only)
 
 Do this for **staging first**, then production (stage → validate → prod).
@@ -178,7 +258,8 @@ php artisan key:generate          # FIRST-TIME ONLY on an empty DB
 ```bash
 cd /home/u214605677/domains/<env>.custospark.com
 /usr/bin/php -d memory_limit=512M /usr/local/bin/composer install --no-dev --prefer-dist --no-interaction
-/usr/bin/php artisan storage:link
+# exec() is disabled on this host -> artisan storage:link FAILS; use ln -s instead:
+[ -L public/storage ] || ln -s "$PWD/storage/app/public" public/storage
 ```
 
 ### 6.6 Migrate + seed (first-time only)
@@ -214,101 +295,49 @@ All five fields `*`. `crontab` is NOT installed on the host — hPanel only.
 
 ---
 
-## 7. Standard backend deploy (staging or production — every later deploy)
+## 7. Backend deploy — superseded by §5A
 
-### 7.1 Pre-flight (local)
-```bash
-cd Backend
-composer vera:fast
-php artisan test --filter=<changed area>   # targeted tests, never the full suite in a loop
-git status --short                          # clean
-```
-
-### 7.2 Push (local)
-```bash
-git add <exact paths>            # NOT git add -A
-git commit -m "<descriptive message>"
-git push origin master
-```
-
-### 7.3 Deploy to server (one environment at a time)
-```bash
-python scripts/ssh_run.py "
-cd /home/u214605677/domains/<academy-api|academy-staging-api>.custospark.com
-git fetch origin
-git reset --hard origin/master             # bulletproof mirror; .env is gitignored + preserved
-/usr/bin/php artisan migrate --force       # ONLY if migrations changed, with --force
-/usr/bin/php artisan optimize:clear
-/usr/bin/php artisan config:clear
-/usr/bin/php artisan route:clear
-"
-```
-
-### 7.4 Post-deploy backend verification
-```bash
-python scripts/ssh_run.py "
-cd /home/u214605677/domains/<env>.custospark.com
-/usr/bin/php artisan about | grep -iE 'Environment|PHP'
-/usr/bin/php artisan schedule:list
-curl -s -o /dev/null -w '%{http_code}\n' https://<env>.custospark.com/
-curl -s https://<env>.custospark.com/api/v1/courses | head -c 200   # public catalog
-"
-```
+Every later backend deploy uses §5A (the DevOps second-deployment runbook): pre-flight,
+push, server pull + mirror, install, migrate, cache clears, storage-link check and
+post-deploy verification in one top-to-bottom sequence. The old step-by-step that lived
+here was folded into §5A and is removed; do not run anything from the old §7 standalone —
+it is missing the §5A non-negotiables (same: `--force` migrations only, never
+`key:generate`, `exec()`-disabled storage link kept via `ln -s`, `.env` regenerated only
+through `scripts/push_env.py`).
 
 ---
 
 ## 8. Frontend (web) deploy
 
-The frontend web build is shipped via the **backend repo**, then copied to the
-web docroot.
+The frontend web build is shipped via the **backend repo**, then copied to the web docroot.
+The current procedure lives in §5A:
+- §5A.2 build & push (local, frontend repo) — `npm run deploy:web:<ENV>`
+- §5A.4 server: pull + `cp -rT` into the web docroot (MUST be `cp -rT`, not globs —
+  dotfile `.htaccess` is the SPA fallback and globs silently drop it)
+- §8.4 below is the then-mandatory verification checklist
 
-### 8.1 Build & push (local, frontend repo)
-```bash
-cd Frontend
-npm run deploy:web:staging       # OR npm run deploy:web:production
-```
-`scripts/deploy-to-backend.mjs`:
-1. typechecks (`tsc -b`) and builds with `--mode staging|production` and a
-   relative asset base (`./`), output `dist/web`.
-2. copies `dist/web` → `Backend/public/staging` (or `production`).
-3. copies `deploy/htaccess.staging` (or `.production`) in as `.htaccess`.
-4. commits **only** `public/<target>` in the backend repo and pushes.
-   The commit message IS the release record
-   (`deploy(web): <target> build v<version> under public/<target>`).
+### 8.4 Every verification must pass
 
-### 8.2 Server: pull + copy into the web docroot
+Run (substitute `<WEB>`, `<API>`, `<APP-DIR>` from the §5A map):
 ```bash
 python scripts/ssh_run.py "
-cd /home/u214605677/domains/<academy-api|academy-staging-api>.custospark.com
-git fetch origin
-git reset --hard origin/master
-git status --short | grep -v '^??'       # expect empty
-
-cd /home/u214605677/domains/custospark.com/public_html
-rm -rf <academy|academy-staging> && mkdir -p <academy|academy-staging>
-cp -rT /home/u214605677/domains/<env>.custospark.com/public/<production|staging> <academy|academy-staging>
-"
-```
-> **MUST use `cp -rT`** (bash `*` silently skips dotfiles like `.htaccess` — the
-> #1 cause of broken SPA deploys). `cp -rT SRC DST` copies the **contents** of
-> `SRC`, including dotfiles.
-
-### 8.3 Web post-deploy verification (critical)
-```bash
-python scripts/ssh_run.py "
-cd /home/u214605677/domains/custospark.com/public_html/<academy|academy-staging>
+cd /home/u214605677/domains/custospark.com/public_html/<WEB>
 echo \"disk assets: \$(ls assets | wc -l)\"
 echo \"index refs:  \$(grep -oE 'assets/[a-zA-Z0-9_/-]+\.js' index.html | sort -u | wc -l)\"
 grep -oE 'assets/[a-zA-Z0-9_/-]+\.js' index.html | sort -u | while read f; do [ -f \"\$f\" ] || echo \"MISSING: \$f\"; done
 JS=\$(grep -oE 'assets/[a-zA-Z0-9_/-]+\.js' index.html | sort -u | head -1)
-curl -s -o /dev/null -w 'JS: %{http_code} %{content_type}\n' https://<academy|academy-staging>.custospark.com/\$JS
-curl -s -o /dev/null -w 'root: %{http_code}\n' https://<academy|academy-staging>.custospark.com/
-curl -s -o /dev/null -w 'deep: %{http_code}\n' https://<academy|academy-staging>.custospark.com/catalog
-curl -s -o /dev/null -w 'api:  %{http_code}\n' https://<academy-api|academy-staging-api>.custospark.com/api/v1/courses
+curl -s -o /dev/null -w 'JS: %{http_code} %{content_type}\n' https://<WEB>/\$JS
+curl -s -o /dev/null -w 'root: %{http_code}\n' https://<WEB>/
+curl -s -o /dev/null -w 'deep: %{http_code}\n' https://<WEB>/catalog
+curl -s -o /dev/null -w 'api:  %{http_code}\n' https://<API>/api/v1/courses
+echo \"api base in bundle: \$(grep -rhoE 'https://<API>/api/v1' assets/*.js | head -1)\"
+echo \"log errors: \$(find /home/u214605677/domains/<APP-DIR>/storage/logs -name 'laravel-*.log' -newermt '-3 hours' | wc -l) files, \"
+tail -5 /home/u214605677/domains/<APP-DIR>/storage/logs/laravel-*.log 2>/dev/null | grep -cE 'ERROR|Exception' || true
 "
 ```
+Placeholders `<WEB>`/`<API>`/`<APP-DIR>` come from the §5A environment map
+(e.g. staging → `academy-staging` / `academy-staging-api` / `academy-staging-api.custospark.com`).
 
-### 8.4 Every verification must pass
 - [ ] Web root HTTP 200 and deep SPA route 200
 - [ ] Served JS is a JS MIME (`application/javascript`), NEVER `text/html`
       (`text/html` = SPA rewrite serving index.html for a missing file)
@@ -346,7 +375,7 @@ echo BACKUP=\$BK; ls -la \"\$BK\"        # MUST be non-zero, else STOP
 
 ### 9.2 Rollback
 - **Frontend:** `rm -rf <academy|academy-staging>` then
-  `cp -rT <backup-folder> <academy|academy-staging>`, re-run §8.3.
+  `cp -rT <backup-folder> <academy|academy-staging>`, re-run §8.4.
 - **Backend code:** `git fetch origin && git checkout <previous-knowngood>` in
   the app dir, then forward-only migrations if needed.
 - **DB:** restore the pre-deploy dump via hPanel or `mysql` client.
@@ -384,6 +413,9 @@ echo BACKUP=\$BK; ls -la \"\$BK\"        # MUST be non-zero, else STOP
   first (`tr -d '\r'`), and always verify a `mysqldump` is non-empty.
 - `git push` of large builds can 408 — if that happens, raise
   `git config http.postBuffer 524288000` then push again.
+- `exec()` is disabled on this host — `artisan storage:link` FAILS. Use
+  `ln -s "$PWD/storage/app/public" public/storage` instead (both envs have it
+  since first-time deploy).
 - Never commit/push the `academy-backup-*` folders — they are rollback
   artifacts, not part of any repo.
 - The Backend default git branch is `master` (not `main`) — all server
