@@ -166,4 +166,24 @@ class EnrollmentFlowTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.status', 'admitted');
     }
+
+    public function test_learner_payment_history_lists_their_payments_with_receipt_urls(): void
+    {
+        [, $course] = $this->adminCourse();
+        $user = $this->learner();
+
+        $enrollmentId = $this->actingAsUser($user)->postJson('/api/v1/enrollments', ['course_id' => $course->id])
+            ->json('data.id');
+        $this->actingAsUser($user)->postJson("/api/v1/enrollments/{$enrollmentId}/pay/application")->assertOk();
+
+        $response = $this->actingAsUser($user)->getJson('/api/v1/payments')->assertOk();
+        $payments = $response->json('data');
+
+        $this->assertNotEmpty($payments);
+        $applied = $payments[0];
+        $this->assertSame('application', $applied['fee_type']);
+        $this->assertSame('paid', $applied['status']);
+        $this->assertEquals($enrollmentId, $applied['enrollment_id']);
+        $this->assertStringEndsWith("/api/v1/payments/{$applied['id']}/receipt", $applied['receipt_url']);
+    }
 }

@@ -182,10 +182,10 @@ class PaymentService
         return $this->payments->find($paymentId);
     }
 
-    /** @return \Illuminate\Database\Eloquent\Collection<int, Payment> */
-    public function forUser(int $userId): \Illuminate\Database\Eloquent\Collection
+    /** @return array<int, Payment> */
+    public function forUser(int $userId): array
     {
-        return $this->payments->forUser($userId);
+        return $this->payments->forUser($userId)->all();
     }
 
     public function updateReference(Payment $payment, string $reference): Payment
