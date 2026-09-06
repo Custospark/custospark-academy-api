@@ -26,8 +26,9 @@ class ScheduleController extends Controller
     ) {}
 
     /** Public: schedule for a course (published, or the caller is enrolled/staff). */
-    public function index(Request $request, int $courseId): JsonResponse
+    public function index(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = $this->courses->findCourse($courseId);
         if ($course === null) {
             abort(404, 'Course not found.');
@@ -53,8 +54,9 @@ class ScheduleController extends Controller
         )]);
     }
 
-    public function store(Request $request, int $courseId): JsonResponse
+    public function store(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = $this->courses->findCourse($courseId);
         if ($course === null) {
             abort(404, 'Course not found.');
@@ -63,7 +65,7 @@ class ScheduleController extends Controller
 
         $validated = $this->validatePayload($request);
 
-        $schedule = $this->courses->createSchedule($courseId, [
+        $schedule = $this->courses->createSchedule($course->id, [
             ...$validated,
             'instructor_id' => $validated['instructor_id'] ?? ($request->user()->isInstructor() ? $request->user()->id : null),
         ]);
@@ -71,8 +73,9 @@ class ScheduleController extends Controller
         return response()->json(['data' => $this->serialize($schedule->load(['course', 'instructor']))], 201);
     }
 
-    public function update(Request $request, int $courseId, int $scheduleId): JsonResponse
+    public function update(Request $request, string|int $courseId, int $scheduleId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $schedule = $this->requireSchedule($courseId, $scheduleId);
         $this->authorizeManage($schedule->course, $request->user());
 
@@ -83,8 +86,9 @@ class ScheduleController extends Controller
         return response()->json(['data' => $this->serialize($schedule->load(['course', 'instructor']))]);
     }
 
-    public function destroy(Request $request, int $courseId, int $scheduleId): JsonResponse
+    public function destroy(Request $request, string|int $courseId, int $scheduleId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $schedule = $this->requireSchedule($courseId, $scheduleId);
         $this->authorizeManage($schedule->course, $request->user());
 
@@ -107,7 +111,13 @@ class ScheduleController extends Controller
         ]);
     }
 
-    private function requireSchedule(int $courseId, int $scheduleId): Schedule
+    /** Resolve a slug-or-id course key to its numeric id for scoping. */
+    private function courseKey(string|int $courseId): int
+    {
+        return Course::resolveByKeyOrFail($courseId)->id;
+    }
+
+    private function requireSchedule(string|int $courseId, int $scheduleId): Schedule
     {
         $schedule = $this->courses->findSchedule($scheduleId);
         if ($schedule === null || (int) $schedule->course_id !== $courseId) {

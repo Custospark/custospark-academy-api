@@ -6,9 +6,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class Course extends Model
 {
@@ -57,6 +57,23 @@ class Course extends Model
     public function isLive(): bool
     {
         return $this->delivery_mode === self::DELIVERY_LIVE;
+    }
+
+    /**
+     * Resolve a course URL key: slug first, numeric id as fallback (so old
+     * id-based API calls keep working while display URLs use slugs).
+     */
+    public static function resolveByKeyOrFail(string|int $key): self
+    {
+        $course = static::query()->where('slug', (string) $key)->first();
+        if ($course === null && ctype_digit((string) $key)) {
+            $course = static::query()->find((int) $key);
+        }
+        if ($course === null) {
+            throw (new ModelNotFoundException)->setModel(static::class, $key);
+        }
+
+        return $course;
     }
 
     public function isSelfPaced(): bool

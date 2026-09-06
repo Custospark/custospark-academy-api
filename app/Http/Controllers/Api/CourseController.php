@@ -34,7 +34,7 @@ class CourseController extends Controller
         )]);
     }
 
-    public function show(int $id): JsonResponse
+    public function show(string|int $id): JsonResponse
     {
         $course = $this->courses->findCourse($id);
         if ($course === null) {
@@ -125,7 +125,7 @@ class CourseController extends Controller
         return response()->json(['data' => $this->serialize($course)], 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    public function update(Request $request, string|int $id): JsonResponse
     {
         $this->authorizeManage();
 
@@ -133,6 +133,7 @@ class CourseController extends Controller
         if ($course === null) {
             abort(404, 'Course not found.');
         }
+        $id = $course->id;
         $this->authorizeCourseOwnership($course, $request->user());
 
         $validated = $request->validate([
@@ -173,7 +174,7 @@ class CourseController extends Controller
         return response()->json(['data' => $this->serialize($course)]);
     }
 
-    public function destroy(Request $request, int $id): JsonResponse
+    public function destroy(Request $request, string|int $id): JsonResponse
     {
         $this->authorizeManage();
 
@@ -188,14 +189,14 @@ class CourseController extends Controller
         return response()->json(['data' => null, 'message' => 'Course deleted.']);
     }
 
-    public function schedules(int $id): JsonResponse
+    public function schedules(string|int $id): JsonResponse
     {
         $course = $this->courses->findCourse($id);
         if ($course === null) {
             abort(404, 'Course not found.');
         }
 
-        return response()->json(['data' => $this->courses->schedulesForCourse($id)]);
+        return response()->json(['data' => $this->courses->schedulesForCourse($course->id)]);
     }
 
     private function authorizeManage(): void

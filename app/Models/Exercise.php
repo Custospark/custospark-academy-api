@@ -23,6 +23,7 @@ class Exercise extends Model
         'lesson_id',
         'title',
         'instructions',
+        'file_path',
         'type',
         'max_score',
         'passing_score',

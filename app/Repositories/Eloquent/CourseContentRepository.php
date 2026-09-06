@@ -55,6 +55,13 @@ class CourseContentRepository implements CourseContentRepositoryInterface
         return LearningOutcome::query()->create($data);
     }
 
+    public function updateOutcome(LearningOutcome $outcome, array $data): LearningOutcome
+    {
+        $outcome->update($data);
+
+        return $outcome->fresh();
+    }
+
     public function deleteOutcome(LearningOutcome $outcome): bool
     {
         return (bool) $outcome->delete();

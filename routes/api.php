@@ -99,6 +99,7 @@ Route::prefix('v1')->group(function () {
             Route::put('courses/{courseId}/lessons/{lessonId}', [CourseContentController::class, 'updateLesson']);
             Route::delete('courses/{courseId}/lessons/{lessonId}', [CourseContentController::class, 'destroyLesson']);
             Route::post('courses/{courseId}/outcomes', [CourseContentController::class, 'storeOutcome']);
+            Route::put('courses/{courseId}/outcomes/{outcomeId}', [CourseContentController::class, 'updateOutcome']);
             Route::delete('courses/{courseId}/outcomes/{outcomeId}', [CourseContentController::class, 'destroyOutcome']);
             Route::post('courses/{courseId}/resources', [CourseContentController::class, 'storeResource']);
             Route::put('courses/{courseId}/resources/{resourceId}', [CourseContentController::class, 'updateResource']);
@@ -115,6 +116,11 @@ Route::prefix('v1')->group(function () {
             Route::post('courses/{courseId}/assignments', [CourseContentController::class, 'storeAssignment']);
             Route::put('courses/{courseId}/assignments/{assignmentId}', [CourseContentController::class, 'updateAssignment']);
             Route::delete('courses/{courseId}/assignments/{assignmentId}', [CourseContentController::class, 'destroyAssignment']);
+
+            // Bulk multiple-choice upload: Excel template + filled-file import.
+            Route::get('courses/{courseId}/questions/template', [CourseContentController::class, 'templateQuestions']);
+            Route::post('courses/{courseId}/{kind}/{parentId}/questions/import', [CourseContentController::class, 'importQuestions'])
+                ->whereIn('kind', ['quiz', 'exercise', 'exam']);
             Route::put('courses/{courseId}/submissions/{submissionId}/grade', [CourseContentController::class, 'gradeSubmission']);
         });
     });

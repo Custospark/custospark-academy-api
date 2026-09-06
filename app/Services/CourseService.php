@@ -32,9 +32,15 @@ class CourseService
         return $this->courses->forCreator($userId, $search)->all();
     }
 
-    public function findCourse(int $id): ?Course
+    /** Find by slug or numeric id (display URLs use slugs; ids still work). */
+    public function findCourse(string|int $key): ?Course
     {
-        return $this->courses->find($id);
+        if (ctype_digit((string) $key)) {
+            return $this->courses->find((int) $key)
+                ?? Course::query()->where('slug', (string) $key)->first();
+        }
+
+        return Course::query()->where('slug', (string) $key)->first();
     }
 
     public function createCourse(array $data, int $creatorId): Course

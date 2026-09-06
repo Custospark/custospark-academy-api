@@ -29,8 +29,14 @@ class CourseContentService
     ) {}
 
     /** Full course structure for the builder. */
-    public function fullCourse(int $courseId): Course
+    /** Full builder structure, by slug or numeric id. */
+    public function fullCourse(string|int $key): Course
     {
+        $id = $key;
+        if (! ctype_digit((string) $key)) {
+            $id = Course::query()->where('slug', (string) $key)->value('id');
+        }
+
         return Course::query()
             ->with([
                 'sections.lessons',
@@ -42,7 +48,7 @@ class CourseContentService
                 'assignments',
                 'fees',
             ])
-            ->findOrFail($courseId);
+            ->findOrFail($id ?? 0);
     }
 
     /* ------------------------------ Sections ------------------------------ */
@@ -104,6 +110,11 @@ class CourseContentService
             'description' => $data['description'],
             'sort_order' => $data['sort_order'] ?? 0,
         ]);
+    }
+
+    public function updateOutcome(\App\Models\LearningOutcome $outcome, array $data): \App\Models\LearningOutcome
+    {
+        return $this->content->updateOutcome($outcome, $data);
     }
 
     public function deleteOutcome(\App\Models\LearningOutcome $outcome): void
@@ -207,6 +218,7 @@ class CourseContentService
             'lesson_id' => $data['lesson_id'] ?? null,
             'title' => $data['title'],
             'instructions' => $data['instructions'] ?? null,
+            'file_path' => $data['file_path'] ?? null,
             'type' => $data['type'] ?? \App\Models\Exercise::TYPE_QUIZ,
             'max_score' => $data['max_score'] ?? 100,
             'passing_score' => $data['passing_score'] ?? 50,
@@ -238,11 +250,18 @@ class CourseContentService
 
     public function updateExercise(\App\Models\Exercise $exercise, array $data): \App\Models\Exercise
     {
-        return $this->content->updateExercise($exercise, $data);
+        $old = $exercise->file_path;
+        $updated = $this->content->updateExercise($exercise, $data);
+        if (array_key_exists('file_path', $data) && $data['file_path'] !== $old) {
+            $this->deletePublicFile($old);
+        }
+
+        return $updated;
     }
 
     public function deleteExercise(\App\Models\Exercise $exercise): void
     {
+        $this->deletePublicFile($exercise->file_path);
         $this->content->deleteExercise($exercise);
     }
 

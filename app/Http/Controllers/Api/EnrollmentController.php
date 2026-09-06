@@ -126,6 +126,7 @@ class EnrollmentController extends Controller
         return [
             'id' => $enrollment->id,
             'course_id' => $enrollment->course_id,
+            'course_slug' => $enrollment->course?->slug,
             'course_title' => $enrollment->course?->title,
             'user_id' => $enrollment->user_id,
             'user_name' => $deep ? $enrollment->user?->name : null,

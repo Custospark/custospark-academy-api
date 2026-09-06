@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Course;
 use App\Models\Lesson;
 use App\Models\Submission;
 use App\Repositories\Contracts\EnrollmentRepositoryInterface;
@@ -26,8 +27,9 @@ class LearnerContentController extends Controller
     ) {}
 
     /** Full course content for an enrolled learner (correct answers hidden). */
-    public function content(Request $request, int $courseId): JsonResponse
+    public function content(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $this->requireEnrolled($courseId, $request->user());
 
         $course = $this->content->fullCourse($courseId);
@@ -37,8 +39,9 @@ class LearnerContentController extends Controller
         ]);
     }
 
-    public function submit(Request $request, int $courseId, string $type, int $typeId): JsonResponse
+    public function submit(Request $request, string|int $courseId, string $type, int $typeId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $this->requireEnrolled($courseId, $request->user());
 
         $validated = $request->validate([
@@ -71,8 +74,9 @@ class LearnerContentController extends Controller
         ], 201);
     }
 
-    public function submitAttempt(Request $request, int $courseId, string $type, int $typeId): JsonResponse
+    public function submitAttempt(Request $request, string|int $courseId, string $type, int $typeId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $this->requireEnrolled($courseId, $request->user());
 
         $validated = $request->validate([
@@ -100,8 +104,9 @@ class LearnerContentController extends Controller
         ], 201);
     }
 
-    public function markLesson(Request $request, int $courseId, int $lessonId): JsonResponse
+    public function markLesson(Request $request, string|int $courseId, int $lessonId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $this->requireEnrolled($courseId, $request->user());
 
         $validated = $request->validate([
@@ -128,8 +133,9 @@ class LearnerContentController extends Controller
         ]);
     }
 
-    public function progress(Request $request, int $courseId): JsonResponse
+    public function progress(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $this->requireEnrolled($courseId, $request->user());
 
         $progress = $this->content->courseProgress($request->user(), $courseId);
@@ -137,7 +143,13 @@ class LearnerContentController extends Controller
         return response()->json(['data' => $progress]);
     }
 
-    protected function requireEnrolled(int $courseId, $user): void
+    /** Resolve a slug-or-id course key to its numeric id for scoping. */
+    protected function courseKey(string|int $courseId): int
+    {
+        return Course::resolveByKeyOrFail($courseId)->id;
+    }
+
+    protected function requireEnrolled(string|int $courseId, $user): void
     {
         if ($user === null) {
             abort(401);
@@ -210,6 +222,7 @@ class LearnerContentController extends Controller
                 'id' => $e->id,
                 'title' => $e->title,
                 'instructions' => $e->instructions,
+                'file_path' => $e->file_path,
                 'type' => $e->type,
                 'max_score' => $e->max_score,
                 'passing_score' => $e->passing_score,

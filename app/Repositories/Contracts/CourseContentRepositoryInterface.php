@@ -29,6 +29,8 @@ interface CourseContentRepositoryInterface
 
     public function createOutcome(array $data): LearningOutcome;
 
+    public function updateOutcome(LearningOutcome $outcome, array $data): LearningOutcome;
+
     public function deleteOutcome(LearningOutcome $outcome): bool;
 
     public function createResource(array $data): Resource;

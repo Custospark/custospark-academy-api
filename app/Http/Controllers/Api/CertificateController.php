@@ -143,10 +143,10 @@ class CertificateController extends Controller
      * a single diagonal Preview watermark; served inline with no-store
      * caching so it is never treated as a downloadable document.
      */
-    public function preview(Request $request, int $courseId): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function preview(Request $request, string|int $courseId): \Symfony\Component\HttpFoundation\StreamedResponse
     {
-        $course = Course::query()->find($courseId);
-        if ($course === null || ! $course->isPublished()) {
+        $course = Course::resolveByKeyOrFail($courseId);
+        if (! $course->isPublished()) {
             abort(404, 'Course not found.');
         }
 

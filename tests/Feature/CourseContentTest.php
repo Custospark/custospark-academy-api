@@ -194,8 +194,7 @@ class CourseContentTest extends TestCase
         $this->assertDatabaseMissing('exams', ['id' => $exam['id']]);
     }
 
-    public function test_deleting_a_resource_removes_its_file(): void
-    {
+    public function test_deleting_a_resource_removes_its_file(): void {
         Storage::fake('public');
         $instructor = User::factory()->instructor()->create();
         $course = $this->courseFor($instructor);
@@ -217,5 +216,46 @@ class CourseContentTest extends TestCase
 
         Storage::disk('public')->assertMissing($resource['file_path']);
         $this->assertDatabaseMissing('resources', ['id' => $resource['id']]);
+    }
+
+    public function test_exercise_accepts_a_paper_file(): void
+    {
+        Storage::fake('public');
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+
+        $exercise = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/exercises", [
+                'title' => 'Practice Set 1',
+                'questions' => [],
+                'file' => UploadedFile::fake()->create('worksheet.pdf', 200, 'application/pdf'),
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertNotNull($exercise['file_path']);
+        Storage::disk('public')->assertExists($exercise['file_path']);
+    }
+
+    public function test_outcome_can_be_updated(): void
+    {
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+
+        $outcome = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/outcomes", [
+                'description' => 'Original outcome',
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $updated = $this->actingAsUser($instructor)
+            ->putJson("/api/v1/admin/courses/{$course->id}/outcomes/{$outcome['id']}", [
+                'description' => 'Edited outcome',
+            ])
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame('Edited outcome', $updated['description']);
     }
 }

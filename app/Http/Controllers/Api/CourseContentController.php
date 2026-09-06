@@ -16,6 +16,7 @@ use App\Models\Quiz;
 use App\Models\Resource;
 use App\Services\CourseContentService;
 use App\Services\EnrollmentService;
+use App\Services\QuestionImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,20 +26,23 @@ class CourseContentController extends Controller
     public function __construct(
         protected CourseContentService $content,
         protected EnrollmentService $enrollments,
+        protected QuestionImportService $questions,
     ) {}
 
     /* --------------------------- Full structure -------------------------- */
 
-    public function show(Request $request, int $courseId): JsonResponse
+    public function show(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = $this->content->fullCourse($courseId);
         $this->authorizeCourse($course, $request->user());
 
         return response()->json(['data' => $this->serializeFull($course)]);
     }
 
-    public function gradeSubmission(Request $request, int $courseId, int $submissionId): JsonResponse
+    public function gradeSubmission(Request $request, string|int $courseId, int $submissionId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
@@ -65,8 +69,9 @@ class CourseContentController extends Controller
 
     /* ------------------------------ Sections ----------------------------- */
 
-    public function storeSection(Request $request, int $courseId): JsonResponse
+    public function storeSection(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
@@ -81,8 +86,9 @@ class CourseContentController extends Controller
         ], 201);
     }
 
-    public function updateSection(Request $request, int $courseId, int $sectionId): JsonResponse
+    public function updateSection(Request $request, string|int $courseId, int $sectionId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $section = $this->requireSection($courseId, $sectionId);
         $this->authorizeCourse($section->course, $request->user());
 
@@ -97,8 +103,9 @@ class CourseContentController extends Controller
         ]);
     }
 
-    public function destroySection(Request $request, int $courseId, int $sectionId): JsonResponse
+    public function destroySection(Request $request, string|int $courseId, int $sectionId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $section = $this->requireSection($courseId, $sectionId);
         $this->authorizeCourse($section->course, $request->user());
 
@@ -109,8 +116,9 @@ class CourseContentController extends Controller
 
     /* ------------------------------ Lessons ------------------------------- */
 
-    public function storeLesson(Request $request, int $courseId): JsonResponse
+    public function storeLesson(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
@@ -121,8 +129,9 @@ class CourseContentController extends Controller
         ], 201);
     }
 
-    public function updateLesson(Request $request, int $courseId, int $lessonId): JsonResponse
+    public function updateLesson(Request $request, string|int $courseId, int $lessonId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $lesson = $this->requireLesson($courseId, $lessonId);
         $this->authorizeCourse($lesson->course, $request->user());
 
@@ -133,8 +142,9 @@ class CourseContentController extends Controller
         ]);
     }
 
-    public function destroyLesson(Request $request, int $courseId, int $lessonId): JsonResponse
+    public function destroyLesson(Request $request, string|int $courseId, int $lessonId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $lesson = $this->requireLesson($courseId, $lessonId);
         $this->authorizeCourse($lesson->course, $request->user());
 
@@ -145,8 +155,9 @@ class CourseContentController extends Controller
 
     /* ------------------------------ Outcomes ------------------------------ */
 
-    public function storeOutcome(Request $request, int $courseId): JsonResponse
+    public function storeOutcome(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
@@ -160,8 +171,9 @@ class CourseContentController extends Controller
         ], 201);
     }
 
-    public function destroyOutcome(Request $request, int $courseId, int $outcomeId): JsonResponse
+    public function destroyOutcome(Request $request, string|int $courseId, int $outcomeId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $outcome = LearningOutcome::query()->where('course_id', $courseId)->findOrFail($outcomeId);
         $this->authorizeCourse($outcome->course, $request->user());
 
@@ -170,10 +182,27 @@ class CourseContentController extends Controller
         return response()->json(['data' => null, 'message' => 'Outcome removed.']);
     }
 
+    public function updateOutcome(Request $request, string|int $courseId, int $outcomeId): JsonResponse
+    {
+        $courseId = $this->courseKey($courseId);
+        $outcome = LearningOutcome::query()->where('course_id', $courseId)->findOrFail($outcomeId);
+        $this->authorizeCourse($outcome->course, $request->user());
+
+        $validated = $request->validate([
+            'description' => ['sometimes', 'required', 'string'],
+            'sort_order' => ['sometimes', 'integer'],
+        ]);
+
+        return response()->json([
+            'data' => $this->serializeOutcome($this->content->updateOutcome($outcome, $validated)),
+        ]);
+    }
+
     /* ------------------------------ Resources ----------------------------- */
 
-    public function storeResource(Request $request, int $courseId): JsonResponse
+    public function storeResource(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
@@ -200,8 +229,9 @@ class CourseContentController extends Controller
         ], 201);
     }
 
-    public function updateResource(Request $request, int $courseId, int $resourceId): JsonResponse
+    public function updateResource(Request $request, string|int $courseId, int $resourceId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $resource = Resource::query()->where('course_id', $courseId)->findOrFail($resourceId);
         $this->authorizeCourse($resource->course, $request->user());
 
@@ -224,8 +254,9 @@ class CourseContentController extends Controller
         ]);
     }
 
-    public function destroyResource(Request $request, int $courseId, int $resourceId): JsonResponse
+    public function destroyResource(Request $request, string|int $courseId, int $resourceId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $resource = Resource::query()->where('course_id', $courseId)->findOrFail($resourceId);
         $this->authorizeCourse($resource->course, $request->user());
 
@@ -236,8 +267,9 @@ class CourseContentController extends Controller
 
     /* ------------------------------- Quizzes ------------------------------ */
 
-    public function storeQuiz(Request $request, int $courseId): JsonResponse
+    public function storeQuiz(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
@@ -248,8 +280,9 @@ class CourseContentController extends Controller
         ], 201);
     }
 
-    public function updateQuiz(Request $request, int $courseId, int $quizId): JsonResponse
+    public function updateQuiz(Request $request, string|int $courseId, int $quizId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $quiz = Quiz::query()->where('course_id', $courseId)->findOrFail($quizId);
         $this->authorizeCourse($quiz->course, $request->user());
 
@@ -260,8 +293,9 @@ class CourseContentController extends Controller
         ]);
     }
 
-    public function destroyQuiz(Request $request, int $courseId, int $quizId): JsonResponse
+    public function destroyQuiz(Request $request, string|int $courseId, int $quizId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $quiz = Quiz::query()->where('course_id', $courseId)->findOrFail($quizId);
         $this->authorizeCourse($quiz->course, $request->user());
 
@@ -272,32 +306,46 @@ class CourseContentController extends Controller
 
     /* ------------------------------ Exercises ----------------------------- */
 
-    public function storeExercise(Request $request, int $courseId): JsonResponse
+    public function storeExercise(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
         $validated = $this->validateAssessment($request);
 
+        $filePath = null;
+        if ($request->hasFile('file')) {
+            $request->validate(['file' => ['file', 'max:20480']]);
+            $filePath = $request->file('file')->store('exercises', 'public');
+        }
+
         return response()->json([
-            'data' => $this->serializeExercise($this->content->createExercise($courseId, $validated)),
+            'data' => $this->serializeExercise($this->content->createExercise($courseId, [...$validated, 'file_path' => $filePath])),
         ], 201);
     }
 
-    public function updateExercise(Request $request, int $courseId, int $exerciseId): JsonResponse
+    public function updateExercise(Request $request, string|int $courseId, int $exerciseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $exercise = Exercise::query()->where('course_id', $courseId)->findOrFail($exerciseId);
         $this->authorizeCourse($exercise->course, $request->user());
 
         $validated = $this->validateAssessment($request, true);
+
+        if ($request->hasFile('file')) {
+            $request->validate(['file' => ['file', 'max:20480']]);
+            $validated['file_path'] = $request->file('file')->store('exercises', 'public');
+        }
 
         return response()->json([
             'data' => $this->serializeExercise($this->content->updateExercise($exercise, $validated)),
         ]);
     }
 
-    public function destroyExercise(Request $request, int $courseId, int $exerciseId): JsonResponse
+    public function destroyExercise(Request $request, string|int $courseId, int $exerciseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $exercise = Exercise::query()->where('course_id', $courseId)->findOrFail($exerciseId);
         $this->authorizeCourse($exercise->course, $request->user());
 
@@ -308,8 +356,9 @@ class CourseContentController extends Controller
 
     /* -------------------------------- Exams ------------------------------- */
 
-    public function storeExam(Request $request, int $courseId): JsonResponse
+    public function storeExam(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
@@ -326,8 +375,9 @@ class CourseContentController extends Controller
         ], 201);
     }
 
-    public function updateExam(Request $request, int $courseId, int $examId): JsonResponse
+    public function updateExam(Request $request, string|int $courseId, int $examId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $exam = Exam::query()->where('course_id', $courseId)->findOrFail($examId);
         $this->authorizeCourse($exam->course, $request->user());
 
@@ -343,8 +393,9 @@ class CourseContentController extends Controller
         ]);
     }
 
-    public function destroyExam(Request $request, int $courseId, int $examId): JsonResponse
+    public function destroyExam(Request $request, string|int $courseId, int $examId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $exam = Exam::query()->where('course_id', $courseId)->findOrFail($examId);
         $this->authorizeCourse($exam->course, $request->user());
 
@@ -355,8 +406,9 @@ class CourseContentController extends Controller
 
     /* ----------------------------- Assignments ---------------------------- */
 
-    public function storeAssignment(Request $request, int $courseId): JsonResponse
+    public function storeAssignment(Request $request, string|int $courseId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $course = Course::query()->findOrFail($courseId);
         $this->authorizeCourse($course, $request->user());
 
@@ -376,8 +428,9 @@ class CourseContentController extends Controller
         ], 201);
     }
 
-    public function updateAssignment(Request $request, int $courseId, int $assignmentId): JsonResponse
+    public function updateAssignment(Request $request, string|int $courseId, int $assignmentId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $assignment = Assignment::query()->where('course_id', $courseId)->findOrFail($assignmentId);
         $this->authorizeCourse($assignment->course, $request->user());
 
@@ -397,8 +450,9 @@ class CourseContentController extends Controller
         ]);
     }
 
-    public function destroyAssignment(Request $request, int $courseId, int $assignmentId): JsonResponse
+    public function destroyAssignment(Request $request, string|int $courseId, int $assignmentId): JsonResponse
     {
+        $courseId = $this->courseKey($courseId);
         $assignment = Assignment::query()->where('course_id', $courseId)->findOrFail($assignmentId);
         $this->authorizeCourse($assignment->course, $request->user());
 
@@ -407,7 +461,59 @@ class CourseContentController extends Controller
         return response()->json(['data' => null, 'message' => 'Assignment deleted.']);
     }
 
+    /* ------------------------- Question Excel import ----------------------- */
+
+    /** Download the fill-in Excel template for bulk multiple-choice upload. */
+    public function templateQuestions(Request $request, string|int $courseId): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $courseId = $this->courseKey($courseId);
+        $course = Course::query()->findOrFail($courseId);
+        $this->authorizeCourse($course, $request->user());
+
+        $bytes = $this->questions->templateBytes();
+
+        return response()->stream(
+            function () use ($bytes): void {
+                echo $bytes;
+            },
+            200,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition' => 'attachment; filename="questions-template.xlsx"',
+            ],
+        );
+    }
+
+    /** Bulk-upload typed questions from a filled Excel template. */
+    public function importQuestions(Request $request, string|int $courseId, string $kind, int $parentId): JsonResponse
+    {
+        $courseId = $this->courseKey($courseId);
+        $course = Course::query()->findOrFail($courseId);
+        $this->authorizeCourse($course, $request->user());
+
+        if (! in_array($kind, ['quiz', 'exercise', 'exam'], true)) {
+            abort(404, 'Unknown assessment kind.');
+        }
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+        ]);
+
+        $result = $this->questions->import($kind, $course, $parentId, $validated['file']);
+
+        return response()->json(['data' => $result], 201);
+    }
+
     /* ---------------------------- Authorization --------------------------- */
+
+    /**
+     * Resolve a slug-or-id course key once per request. Returns the numeric id
+     * so all scoping (where course_id ...) and service calls stay unchanged.
+     */
+    protected function courseKey(string|int $courseId): int
+    {
+        return Course::resolveByKeyOrFail($courseId)->id;
+    }
 
     protected function authorizeCourse(Course $course, $user): void
     {
@@ -423,12 +529,12 @@ class CourseContentController extends Controller
         abort(403, 'You can only manage courses you created.');
     }
 
-    protected function requireSection(int $courseId, int $sectionId): CourseSection
+    protected function requireSection(string|int $courseId, int $sectionId): CourseSection
     {
         return CourseSection::query()->where('course_id', $courseId)->findOrFail($sectionId);
     }
 
-    protected function requireLesson(int $courseId, int $lessonId): Lesson
+    protected function requireLesson(string|int $courseId, int $lessonId): Lesson
     {
         return Lesson::query()->where('course_id', $courseId)->findOrFail($lessonId);
     }
@@ -448,7 +554,7 @@ class CourseContentController extends Controller
         ];
 
         if ($partial) {
-            $rules = collect($rules)->mapWithKeys(fn ($rule, $key) => ['sometimes'.substr($key, 0) => $rule])->all();
+            $rules = collect($rules)->mapWithKeys(fn ($rule, $key) => [$key => ['sometimes', ...$rule]])->all();
         }
 
         return $request->validate($rules);
@@ -625,6 +731,7 @@ class CourseContentController extends Controller
             'lesson_id' => $exercise->lesson_id,
             'title' => $exercise->title,
             'instructions' => $exercise->instructions,
+            'file_path' => $exercise->file_path,
             'type' => $exercise->type,
             'max_score' => $exercise->max_score,
             'passing_score' => $exercise->passing_score,
