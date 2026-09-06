@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -53,6 +55,28 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * avatar_url is stored as a public-disk path (avatars/...) but always READ
+     * as an absolute URL, so <img> tags resolve on every environment. Tolerates
+     * nulls, bare paths, /storage/-prefixed paths and full URLs.
+     */
+    protected function avatarUrl(): Attribute
+    {
+        return Attribute::make(
+            get: function (?string $value): ?string {
+                if ($value === null || $value === '') {
+                    return null;
+                }
+                if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+                    return $value;
+                }
+                $path = preg_replace('#^/?storage/#', '', ltrim($value, '/'));
+
+                return url(Storage::url($path));
+            },
+        );
     }
 
     public function isAdmin(): bool

@@ -66,17 +66,20 @@ class CertificatePdfService
 
     /**
      * Watermarked SAMPLE of the certificate design for a course. This is not a
-     * certificate: it takes a Course (never a Certificate), uses placeholder
-     * learner data, has no award date, no registry reference and no QR code,
-     * and the sheet is covered by a tiled diagonal "PREVIEW" watermark so no
-     * crop of it can pass as a real document.
+     * certificate: it takes a Course (never a Certificate), shows the design
+     * with the given learner name (the logged-in learner's own name, so the
+     * preview is identical to what they would receive), has no award date, no
+     * registry reference and no QR code, and the sheet carries a single
+     * diagonal "Preview" watermark.
+     *
+     * @return array<string, mixed>
      */
-    public function renderPreviewPdf(Course $course): string
+    public function buildPreviewData(Course $course, string $studentName = 'John Doe'): array
     {
-        return $this->pdf->render('certificates.certificate', [
+        return [
             'isPreview' => true,
             'certificate' => null,
-            'student' => (object) ['name' => 'Sample Learner'],
+            'student' => (object) ['name' => $studentName],
             'course' => $course,
             'courseTitle' => $course->title,
             'courseLevel' => $course->level,
@@ -86,7 +89,12 @@ class CertificatePdfService
             'verifyUrl' => null,
             'logoDataUri' => $this->pdf->roundedLogoDataUri(),
             'qrDataUri' => null,
-        ], 'a4', 'landscape');
+        ];
+    }
+
+    public function renderPreviewPdf(Course $course, string $studentName = 'John Doe'): string
+    {
+        return $this->pdf->render('certificates.certificate', $this->buildPreviewData($course, $studentName), 'a4', 'landscape');
     }
 
     public function filename(Certificate $certificate): string

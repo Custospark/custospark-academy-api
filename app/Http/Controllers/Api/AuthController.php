@@ -98,6 +98,7 @@ class AuthController extends Controller
 
     private function serializeUser(User $user): array
     {
+        // avatar_url resolves to an absolute URL via the User accessor.
         return [
             'id' => $user->id,
             'name' => $user->name,

@@ -67,6 +67,11 @@ class PaymentController extends Controller
             abort(403, 'You cannot pay for this enrollment.');
         }
 
+        // Fail fast when the gateway is off: never mint stray pending payments.
+        if (! $this->gateway->isEnabled()) {
+            return response()->json(['message' => 'Online payments are currently unavailable. Please try again later.'], 503);
+        }
+
         $result = $this->payments->payFee($enrollment, $user, $feeType);
 
         // No fee configured or sponsored (amount 0): state already advanced.

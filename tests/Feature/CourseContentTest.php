@@ -8,6 +8,8 @@ use App\Models\Course;
 use App\Models\CourseFee;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CourseContentTest extends TestCase
@@ -153,5 +155,67 @@ class CourseContentTest extends TestCase
         $this->actingAsUser($learner)
             ->postJson("/api/v1/admin/courses/{$course->id}/lessons", ['title' => 'Nope'])
             ->assertStatus(403);
+    }
+
+    public function test_exam_accepts_a_paper_file_and_replaces_it(): void
+    {
+        Storage::fake('public');
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+
+        $exam = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/exams", [
+                'title' => 'Final Exam',
+                'passing_score' => 50,
+                'file' => UploadedFile::fake()->create('paper.pdf', 200, 'application/pdf'),
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertNotNull($exam['file_path']);
+        Storage::disk('public')->assertExists($exam['file_path']);
+
+        $replaced = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/exams/{$exam['id']}", [
+                '_method' => 'PUT',
+                'file' => UploadedFile::fake()->create('paper-v2.pdf', 200, 'application/pdf'),
+            ])
+            ->assertOk()
+            ->json('data');
+
+        $this->assertNotSame($exam['file_path'], $replaced['file_path']);
+        Storage::disk('public')->assertExists($replaced['file_path']);
+        Storage::disk('public')->assertMissing($exam['file_path']);
+
+        $this->actingAsUser($instructor)
+            ->deleteJson("/api/v1/admin/courses/{$course->id}/exams/{$exam['id']}")
+            ->assertOk();
+        Storage::disk('public')->assertMissing($replaced['file_path']);
+        $this->assertDatabaseMissing('exams', ['id' => $exam['id']]);
+    }
+
+    public function test_deleting_a_resource_removes_its_file(): void
+    {
+        Storage::fake('public');
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+
+        $resource = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/resources", [
+                'title' => 'Course Book',
+                'type' => 'book',
+                'file' => UploadedFile::fake()->create('book.pdf', 200, 'application/pdf'),
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        Storage::disk('public')->assertExists($resource['file_path']);
+
+        $this->actingAsUser($instructor)
+            ->deleteJson("/api/v1/admin/courses/{$course->id}/resources/{$resource['id']}")
+            ->assertOk();
+
+        Storage::disk('public')->assertMissing($resource['file_path']);
+        $this->assertDatabaseMissing('resources', ['id' => $resource['id']]);
     }
 }

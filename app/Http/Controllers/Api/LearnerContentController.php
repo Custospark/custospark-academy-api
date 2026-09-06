@@ -225,6 +225,7 @@ class LearnerContentController extends Controller
                 'id' => $x->id,
                 'title' => $x->title,
                 'description' => $x->description,
+                'file_path' => $x->file_path,
                 'max_score' => $x->max_score,
                 'passing_score' => $x->passing_score,
                 'time_limit_minutes' => $x->time_limit_minutes,

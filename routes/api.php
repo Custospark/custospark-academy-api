@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CertificateController;
 use App\Http\Controllers\Api\CourseContentController;
@@ -29,6 +30,11 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
+
+        // Own account: profile + security (all roles).
+        Route::put('account/profile', [AccountController::class, 'updateProfile']);
+        Route::put('account/password', [AccountController::class, 'updatePassword']);
+        Route::post('account/avatar', [AccountController::class, 'uploadAvatar']);
 
         Route::post('enrollments', [EnrollmentController::class, 'apply']);
         Route::get('enrollments/mine', [EnrollmentController::class, 'mine']);

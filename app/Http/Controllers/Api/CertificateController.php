@@ -138,8 +138,9 @@ class CertificateController extends Controller
      *
      * Abuse controls: authenticated + throttled route; published courses only;
      * rendered from the Course (no certificate record is read or created); the
-     * sheet carries placeholder learner data, no award date, no reference, no
-     * QR, and a tiled diagonal PREVIEW watermark; served inline with no-store
+     * sheet shows the logged-in learner's own name exactly as it would appear
+     * on their real certificate, with no award date, no reference, no QR, and
+     * a single diagonal Preview watermark; served inline with no-store
      * caching so it is never treated as a downloadable document.
      */
     public function preview(Request $request, int $courseId): \Symfony\Component\HttpFoundation\StreamedResponse
@@ -149,7 +150,10 @@ class CertificateController extends Controller
             abort(404, 'Course not found.');
         }
 
-        $bytes = app(CertificatePdfService::class)->renderPreviewPdf($course);
+        $bytes = app(CertificatePdfService::class)->renderPreviewPdf(
+            $course,
+            (string) ($request->user()?->name ?? 'John Doe')
+        );
 
         return response()->stream(
             function () use ($bytes): void {

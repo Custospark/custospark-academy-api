@@ -6,6 +6,7 @@ namespace App\Services\Payment\Gateways;
 
 use App\Services\Payment\Contracts\PaymentGatewayInterface;
 use App\Services\Payment\Gateways\Exceptions\GatewayException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -109,10 +110,16 @@ class PesaPalGateway implements PaymentGatewayInterface
             ],
         ];
 
-        $response = Http::withToken($accessToken)
-            ->acceptJson()
-            ->timeout(30)
-            ->post("{$this->baseUrl}/api/Transactions/SubmitOrderRequest", $body);
+        $response = $this->postOrder($accessToken, $body);
+
+        if ($response->status() === 401) {
+            // The cached Bearer token died before PesaPal's own expiry (or was
+            // revoked/rotated). Drop it, fetch a fresh one, retry exactly once.
+            Cache::forget($this->tokenCacheKey());
+            Log::warning('[PesaPal] Order submission got 401 - refreshing token and retrying once');
+            $accessToken = $this->getAccessToken();
+            $response = $this->postOrder($accessToken, $body);
+        }
 
         $data = $response->json() ?? [];
 
@@ -158,12 +165,14 @@ class PesaPalGateway implements PaymentGatewayInterface
         }
 
         $accessToken = $this->getAccessToken();
-        $response = Http::withToken($accessToken)
-            ->acceptJson()
-            ->timeout(30)
-            ->get("{$this->baseUrl}/api/Transactions/GetTransactionStatus", [
-                'orderTrackingId' => $transactionId,
-            ]);
+        $response = $this->fetchOrderStatus($accessToken, $transactionId);
+
+        if ($response->status() === 401) {
+            Cache::forget($this->tokenCacheKey());
+            Log::warning('[PesaPal] Status check got 401 - refreshing token and retrying once');
+            $accessToken = $this->getAccessToken();
+            $response = $this->fetchOrderStatus($accessToken, $transactionId);
+        }
 
         $data = $response->json() ?? [];
         $statusCode = (int) ($data['status_code'] ?? 0);
@@ -205,6 +214,31 @@ class PesaPalGateway implements PaymentGatewayInterface
         return true;
     }
 
+    private function tokenCacheKey(): string
+    {
+        return 'pesapal_token_'.config('pesapal.environment');
+    }
+
+    /** @param  array<string, mixed>  $body */
+    private function postOrder(string $accessToken, array $body): Response
+    {
+        return Http::withToken($accessToken)
+            ->asJson()
+            ->acceptJson()
+            ->timeout(30)
+            ->post("{$this->baseUrl}/api/Transactions/SubmitOrderRequest", $body);
+    }
+
+    private function fetchOrderStatus(string $accessToken, string $transactionId): Response
+    {
+        return Http::withToken($accessToken)
+            ->acceptJson()
+            ->timeout(30)
+            ->get("{$this->baseUrl}/api/Transactions/GetTransactionStatus", [
+                'orderTrackingId' => $transactionId,
+            ]);
+    }
+
     private function isBypassMode(): bool
     {
         if (! in_array(app()->environment(), ['local', 'testing'], true)) {
@@ -216,7 +250,7 @@ class PesaPalGateway implements PaymentGatewayInterface
 
     private function getAccessToken(): string
     {
-        $cacheKey = 'pesapal_token_'.config('pesapal.environment');
+        $cacheKey = $this->tokenCacheKey();
         $ttl = (int) config('pesapal.token_cache_ttl', 1800);
 
         return Cache::remember($cacheKey, $ttl, function () {
@@ -249,6 +283,7 @@ class PesaPalGateway implements PaymentGatewayInterface
         $ipnUrl = (string) (config('pesapal.ipn_url') ?? route('payments.pesapal.ipn'));
 
         $response = Http::withToken($accessToken)
+            ->asJson()
             ->acceptJson()
             ->timeout(15)
             ->post("{$this->baseUrl}/api/URLSetup/RegisterIPN", [

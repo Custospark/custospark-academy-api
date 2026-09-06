@@ -315,8 +315,14 @@ class CourseContentController extends Controller
 
         $validated = $this->validateAssessment($request);
 
+        $filePath = null;
+        if ($request->hasFile('file')) {
+            $request->validate(['file' => ['file', 'max:20480']]);
+            $filePath = $request->file('file')->store('exams', 'public');
+        }
+
         return response()->json([
-            'data' => $this->serializeExam($this->content->createExam($courseId, $validated)),
+            'data' => $this->serializeExam($this->content->createExam($courseId, [...$validated, 'file_path' => $filePath])),
         ], 201);
     }
 
@@ -326,6 +332,11 @@ class CourseContentController extends Controller
         $this->authorizeCourse($exam->course, $request->user());
 
         $validated = $this->validateAssessment($request, true);
+
+        if ($request->hasFile('file')) {
+            $request->validate(['file' => ['file', 'max:20480']]);
+            $validated['file_path'] = $request->file('file')->store('exams', 'public');
+        }
 
         return response()->json([
             'data' => $this->serializeExam($this->content->updateExam($exam, $validated)),
@@ -462,7 +473,7 @@ class CourseContentController extends Controller
         ];
 
         if ($partial) {
-            $rules = collect($rules)->mapWithKeys(fn ($rule, $key) => ['sometimes'.$key => $rule])->all();
+            $rules = collect($rules)->mapWithKeys(fn ($rule, $key) => [$key => ['sometimes', ...$rule]])->all();
         }
 
         return $request->validate($rules);
@@ -489,7 +500,7 @@ class CourseContentController extends Controller
         ];
 
         if ($partial) {
-            $rules = collect($rules)->mapWithKeys(fn ($rule, $key) => ['sometimes'.$key => $rule])->all();
+            $rules = collect($rules)->mapWithKeys(fn ($rule, $key) => [$key => ['sometimes', ...$rule]])->all();
         }
 
         return $request->validate($rules);
@@ -630,6 +641,7 @@ class CourseContentController extends Controller
             'course_id' => $exam->course_id,
             'title' => $exam->title,
             'description' => $exam->description,
+            'file_path' => $exam->file_path,
             'max_score' => $exam->max_score,
             'passing_score' => $exam->passing_score,
             'time_limit_minutes' => $exam->time_limit_minutes,

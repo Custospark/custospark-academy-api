@@ -59,7 +59,7 @@ class CertificatePreviewTest extends TestCase
         $html = View::make('certificates.certificate', [
             'isPreview' => true,
             'certificate' => null,
-            'student' => (object) ['name' => 'Sample Learner'],
+            'student' => (object) ['name' => 'John Doe'],
             'course' => $course,
             'courseTitle' => $course->title,
             'courseLevel' => $course->level,
@@ -71,15 +71,14 @@ class CertificatePreviewTest extends TestCase
             'qrDataUri' => null,
         ])->render();
 
-        // Watermark layers present: tiled diagonal lines + big diagonal PREVIEW + badge.
-        $this->assertStringContainsString('class="wm"', $html);
-        $this->assertGreaterThanOrEqual(6, substr_count($html, 'class="wm-line"'));
-        $this->assertStringContainsString('class="wm-main">Preview<', $html);
-        $this->assertStringContainsString('Sample preview &middot; not valid', $html);
+        // Exactly ONE diagonal Preview watermark - no tiled layers, no badge.
+        $this->assertStringNotContainsString('class="wm-line"', $html);
+        $this->assertStringNotContainsString('class="wm-badge"', $html);
+        $this->assertSame(1, substr_count($html, 'class="wm-main">Preview<'));
         $this->assertStringContainsString('rotate(-24deg)', $html);
 
-        // Placeholder data only, course title still shown so it is a useful preview.
-        $this->assertStringContainsString('Sample Learner', $html);
+        // Demo learner name shown, course title still shown so it is a useful preview.
+        $this->assertStringContainsString('John Doe', $html);
         $this->assertStringContainsString('Data Science Fundamentals', $html);
         $this->assertStringContainsString('<div class="value">Sample</div>', $html);
 
@@ -113,9 +112,7 @@ class CertificatePreviewTest extends TestCase
             'qrDataUri' => null,
         ])->render();
 
-        $this->assertStringNotContainsString('class="wm"', $html);
         $this->assertStringNotContainsString('class="wm-main"', $html);
-        $this->assertStringNotContainsString('class="wm-badge"', $html);
         $this->assertStringNotContainsString(' class="sheet is-preview"', $html);
         $this->assertStringNotContainsString('Sample preview', $html);
         $this->assertStringContainsString('CSA-TEST-1-ABCD', $html);
@@ -130,5 +127,24 @@ class CertificatePreviewTest extends TestCase
 
         $this->assertStringStartsWith('%PDF-', $bytes);
         $this->assertSame(0, Certificate::query()->count());
+    }
+
+    public function test_preview_data_carries_the_learner_name_and_no_verifiable_data(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $course = Course::factory()->published()->create(['created_by' => $admin->id]);
+
+        $service = app(CertificatePdfService::class);
+
+        $named = $service->buildPreviewData($course, 'Ada Lovelace');
+        $this->assertTrue($named['isPreview']);
+        $this->assertSame('Ada Lovelace', $named['student']->name);
+        $this->assertSame('PREVIEW-SAMPLE', $named['reference']);
+        $this->assertNull($named['issuedAt']);
+        $this->assertNull($named['verifyUrl']);
+        $this->assertNull($named['qrDataUri']);
+
+        $default = $service->buildPreviewData($course);
+        $this->assertSame('John Doe', $default['student']->name);
     }
 }

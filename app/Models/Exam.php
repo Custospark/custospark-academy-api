@@ -18,6 +18,7 @@ class Exam extends Model
         'course_id',
         'title',
         'description',
+        'file_path',
         'max_score',
         'passing_score',
         'time_limit_minutes',

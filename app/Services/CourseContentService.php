@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Repositories\Contracts\CourseContentRepositoryInterface;
 use App\Repositories\Contracts\SubmissionRepositoryInterface;
 use App\Repositories\Contracts\CourseRepositoryInterface;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -128,12 +129,27 @@ class CourseContentService
 
     public function updateResource(\App\Models\Resource $resource, array $data): \App\Models\Resource
     {
-        return $this->content->updateResource($resource, $data);
+        $old = $resource->file_path;
+        $updated = $this->content->updateResource($resource, $data);
+        if (array_key_exists('file_path', $data) && $data['file_path'] !== $old) {
+            $this->deletePublicFile($old);
+        }
+
+        return $updated;
     }
 
     public function deleteResource(\App\Models\Resource $resource): void
     {
+        $this->deletePublicFile($resource->file_path);
         $this->content->deleteResource($resource);
+    }
+
+    /** Remove a file from the public disk (guards remote URLs + nulls). */
+    protected function deletePublicFile(?string $path): void
+    {
+        if ($path !== null && $path !== '' && ! str_starts_with($path, 'http')) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     /* ------------------------------- Quizzes ------------------------------ */
@@ -238,6 +254,7 @@ class CourseContentService
             'course_id' => $courseId,
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
+            'file_path' => $data['file_path'] ?? null,
             'max_score' => $data['max_score'] ?? 100,
             'passing_score' => $data['passing_score'] ?? 50,
             'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
@@ -268,11 +285,18 @@ class CourseContentService
 
     public function updateExam(\App\Models\Exam $exam, array $data): \App\Models\Exam
     {
-        return $this->content->updateExam($exam, $data);
+        $old = $exam->file_path;
+        $updated = $this->content->updateExam($exam, $data);
+        if (array_key_exists('file_path', $data) && $data['file_path'] !== $old) {
+            $this->deletePublicFile($old);
+        }
+
+        return $updated;
     }
 
     public function deleteExam(\App\Models\Exam $exam): void
     {
+        $this->deletePublicFile($exam->file_path);
         $this->content->deleteExam($exam);
     }
 
