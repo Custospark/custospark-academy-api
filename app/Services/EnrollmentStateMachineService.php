@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Exceptions\DomainException;
+use App\Models\Course;
 use App\Models\Enrollment;
 use App\Repositories\Contracts\EnrollmentRepositoryInterface;
 use Illuminate\Support\Carbon;
@@ -21,6 +22,11 @@ class EnrollmentStateMachineService
 
     public function apply(int $courseId, int $userId): Enrollment
     {
+        $course = Course::query()->find($courseId);
+        if ($course === null || ! $course->isPublished()) {
+            throw new DomainException('You cannot apply for an unpublished course.');
+        }
+
         if ($this->enrollments->findByCourseAndUser($courseId, $userId) !== null) {
             throw new DomainException('You have already applied for this course.');
         }

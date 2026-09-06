@@ -40,11 +40,19 @@ Route::prefix('v1')->group(function () {
         Route::get('payments/{paymentId}', [PaymentController::class, 'verify']);
         Route::get('payments/{paymentId}/receipt', [PaymentController::class, 'receipt']);
 
+        Route::get('schedules/mine', [ScheduleController::class, 'mine']);
+
         Route::get('certificates/mine', [CertificateController::class, 'mine']);
         Route::post('enrollments/{enrollmentId}/certificate', [CertificateController::class, 'issue']);
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
         Route::get('certificates/{id}/pdf', [CertificateController::class, 'pdf']);
         Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
+
+        // Watermarked SAMPLE of a course's certificate design (catalog). Not a
+        // certificate: no record, no reference, no QR. Throttled against scraping.
+        Route::get('courses/{courseId}/certificate-preview', [CertificateController::class, 'preview'])
+            ->middleware('throttle:20,1')
+            ->name('certificates.preview');
 
         // Learner course actions: submissions, attempts, progress
         Route::get('courses/{courseId}/content', [LearnerContentController::class, 'content']);
@@ -63,6 +71,8 @@ Route::prefix('v1')->group(function () {
             Route::put('courses/{id}', [CourseController::class, 'update']);
             Route::delete('courses/{id}', [CourseController::class, 'destroy']);
             Route::post('courses/{courseId}/schedules', [ScheduleController::class, 'store']);
+            Route::put('courses/{courseId}/schedules/{scheduleId}', [ScheduleController::class, 'update']);
+            Route::delete('courses/{courseId}/schedules/{scheduleId}', [ScheduleController::class, 'destroy']);
 
             Route::get('instructors', [InstructorController::class, 'index']);
             Route::post('instructors', [InstructorController::class, 'store']);

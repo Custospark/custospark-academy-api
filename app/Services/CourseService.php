@@ -89,4 +89,25 @@ class CourseService
             ...$data,
         ]);
     }
+
+    public function findSchedule(int $scheduleId): ?\App\Models\Schedule
+    {
+        return $this->schedules->find($scheduleId);
+    }
+
+    public function updateSchedule(\App\Models\Schedule $schedule, array $data): \App\Models\Schedule
+    {
+        return $this->schedules->update($schedule, $data);
+    }
+
+    public function deleteSchedule(\App\Models\Schedule $schedule): void
+    {
+        $this->schedules->delete($schedule);
+    }
+
+    /** @return array<int, \App\Models\Schedule> */
+    public function schedulesForLearner(int $userId): array
+    {
+        return $this->schedules->forLearner($userId)->all();
+    }
 }

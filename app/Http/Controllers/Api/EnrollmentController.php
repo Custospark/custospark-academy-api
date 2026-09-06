@@ -37,21 +37,25 @@ class EnrollmentController extends Controller
         ]);
     }
 
+    /**
+     * Staff enrollment listing. Admins see every enrollment; instructors only
+     * see enrollments on courses they created. Filters: course_id, status, q.
+     */
     public function adminIndex(Request $request): JsonResponse
     {
-        $this->requireAdmin();
+        $this->requireStaff();
 
         return response()->json([
             'data' => array_map(
                 fn (Enrollment $e) => $this->serialize($e, deep: true),
-                $this->enrollments->forAdmin($request->query()),
+                $this->enrollments->forAdmin($request->query(), $request->user()),
             ),
         ]);
     }
 
     public function admit(Request $request, int $id): JsonResponse
     {
-        $this->requireAdmin();
+        $this->authorizeManageEnrollment($id);
         $validated = $request->validate(['note' => ['nullable', 'string']]);
 
         return response()->json([
@@ -61,7 +65,7 @@ class EnrollmentController extends Controller
 
     public function reject(Request $request, int $id): JsonResponse
     {
-        $this->requireAdmin();
+        $this->authorizeManageEnrollment($id);
         $validated = $request->validate(['note' => ['nullable', 'string']]);
 
         return response()->json([
@@ -83,10 +87,37 @@ class EnrollmentController extends Controller
         ]);
     }
 
-    private function requireAdmin(): void
+    private function requireStaff(): void
     {
-        if (! request()->user()?->isAdmin()) {
-            abort(403, 'Only admins can perform this action.');
+        $user = request()->user();
+        if (! $user?->isAdmin() && ! $user?->isInstructor()) {
+            abort(403, 'Only admins and instructors can view enrollments.');
+        }
+    }
+
+    /** Admins manage any enrollment; instructors only those on their own courses. */
+    private function authorizeManageEnrollment(int $enrollmentId): void
+    {
+        $user = request()->user();
+        if ($user === null) {
+            abort(401);
+        }
+
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        if (! $user->isInstructor()) {
+            abort(403, 'Only admins and instructors can perform this action.');
+        }
+
+        $enrollment = $this->enrollments->getEnrollment($enrollmentId);
+        if ($enrollment === null) {
+            abort(404, 'Enrollment not found.');
+        }
+
+        if ((int) $enrollment->course?->created_by !== (int) $user->id) {
+            abort(403, 'You can only manage enrollments for courses you created.');
         }
     }
 
@@ -98,7 +129,11 @@ class EnrollmentController extends Controller
             'course_title' => $enrollment->course?->title,
             'user_id' => $enrollment->user_id,
             'user_name' => $deep ? $enrollment->user?->name : null,
+            'user_email' => $deep ? $enrollment->user?->email : null,
             'status' => $enrollment->status,
+            'has_paid_application' => $enrollment->payments->contains(fn ($p) => $p->fee_type === 'application' && $p->status === 'paid'),
+            'has_paid_tuition' => $enrollment->payments->contains(fn ($p) => $p->fee_type === 'tuition' && $p->status === 'paid'),
+            'has_paid_certificate' => $enrollment->payments->contains(fn ($p) => $p->fee_type === 'certificate' && $p->status === 'paid'),
             'applied_at' => $enrollment->applied_at?->toIso8601String(),
             'admitted_at' => $enrollment->admitted_at?->toIso8601String(),
             'completed_at' => $enrollment->completed_at?->toIso8601String(),

@@ -21,15 +21,39 @@ class CourseRepository implements CourseRepositoryInterface
 
     public function all(?string $search = null): Collection
     {
-        return $this->applySearch(Course::query(), $search)->get();
+        return $this->withEnrollmentStats($this->applySearch(Course::query(), $search))->get();
     }
 
     public function forCreator(int $userId, ?string $search = null): Collection
     {
-        return $this->applySearch(
+        return $this->withEnrollmentStats($this->applySearch(
             Course::query()->where('created_by', $userId),
             $search,
-        )->get();
+        ))->get();
+    }
+
+    /**
+     * Aggregate enrollment counters per course in a single query (no N+1) for
+     * the management listing: who enrolled, who paid tuition, who is certified.
+     */
+    protected function withEnrollmentStats(Builder $query): Builder
+    {
+        $paidTuition = fn (Builder $q) => $q->whereHas('payments', function (Builder $p): void {
+            $p->where('fee_type', 'tuition')->where('status', 'paid');
+        });
+
+        return $query->withCount([
+            'enrollments as enrolled_count' => fn (Builder $q) => $q->whereNotIn('status', ['rejected', 'cancelled']),
+            'enrollments as pending_review_count' => fn (Builder $q) => $q->whereIn('status', ['applied', 'application_fee_paid']),
+            'enrollments as admitted_count' => fn (Builder $q) => $q->where('status', 'admitted'),
+            'enrollments as tuition_paid_count' => $paidTuition,
+            'enrollments as in_progress_count' => fn (Builder $q) => $q->whereIn('status', ['tuition_paid', 'in_progress']),
+            'enrollments as completed_count' => fn (Builder $q) => $q->whereIn('status', ['completed', 'certification', 'certified']),
+            'enrollments as certified_count' => fn (Builder $q) => $q->where('status', 'certified'),
+            'enrollments as rejected_count' => fn (Builder $q) => $q->where('status', 'rejected'),
+            'enrollments as cancelled_count' => fn (Builder $q) => $q->where('status', 'cancelled'),
+            'certificates as certificates_issued_count',
+        ]);
     }
 
     public function findBySlug(string $slug): ?Course

@@ -24,4 +24,18 @@ abstract class TestCase extends BaseTestCase
             'Authorization' => 'Bearer '.$user->createToken('test')->plainTextToken,
         ]);
     }
+
+    /**
+     * Make the next request as an anonymous visitor. Needed after actingAsUser()
+     * within the same test, because default headers (the bearer token) persist
+     * across requests on the test client.
+     */
+    protected function asGuest(): static
+    {
+        Auth::forgetGuards();
+        $this->flushHeaders();
+        $this->defaultHeaders = [];
+
+        return $this;
+    }
 }

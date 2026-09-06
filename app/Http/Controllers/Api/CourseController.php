@@ -22,15 +22,11 @@ class CourseController extends Controller
     {
         // Public route: resolve a logged-in user (via bearer token) so the
         // catalog can surface their enrollment per course, while staying
-        // fully accessible to guests.
+        // fully accessible to guests. Course catalog strictly lists published courses.
         $user = $request->user() ?? auth('sanctum')->user();
         $search = $request->query('q');
 
-        $courses = match (true) {
-            $user?->isAdmin() => $this->courses->allCourses($search),
-            $user?->isInstructor() => $this->courses->coursesForCreator((int) $user->id, $search),
-            default => $this->courses->publishedCourses($search),
-        };
+        $courses = $this->courses->publishedCourses($search);
 
         return response()->json(['data' => array_map(
             fn (Course $c) => $this->serialize($c, user: $user),
@@ -45,20 +41,36 @@ class CourseController extends Controller
             abort(404, 'Course not found.');
         }
 
-        if (! $course->isPublished()) {
-            abort(404, 'Course not found.');
-        }
-
         $user = request()->user() ?? auth('sanctum')->user();
+
+        // Unpublished courses (draft/archived) are hidden from the public catalog,
+        // but enrolled students, administrators, and the course creator must never lose access.
+        if (! $course->isPublished()) {
+            $isEnrolled = $user ? $course->enrollments()->where('user_id', $user->id)->exists() : false;
+            $isStaff = $user && ($user->isAdmin() || (int) $course->created_by === (int) $user->id);
+
+            if (! $isEnrolled && ! $isStaff) {
+                abort(404, 'Course not found.');
+            }
+        }
 
         return response()->json(['data' => $this->serialize($course, withSchedule: true, user: $user)]);
     }
 
+    /**
+     * Course management listing. Admins see every course (any status);
+     * instructors only the courses they created. Each row carries an
+     * enrollment summary (enrolled / paid tuition / certified ...).
+     */
     public function manageIndex(Request $request): JsonResponse
     {
         $user = $request->user();
         if ($user === null) {
             abort(401);
+        }
+
+        if (! $user->isAdmin() && ! $user->isInstructor()) {
+            abort(403, 'Only admins and instructors can manage courses.');
         }
 
         $search = $request->query('q');
@@ -68,7 +80,7 @@ class CourseController extends Controller
             : $this->courses->coursesForCreator((int) $user->id, $search);
 
         return response()->json(['data' => array_map(
-            fn (Course $c) => $this->serialize($c),
+            fn (Course $c) => $this->serialize($c, withStats: true),
             $courses,
         )]);
     }
@@ -245,10 +257,12 @@ class CourseController extends Controller
         }
     }
 
-    private function serialize(Course $course, bool $withSchedule = false, ?User $user = null): array
+    private function serialize(Course $course, bool $withSchedule = false, ?User $user = null, bool $withStats = false): array
     {
         return [
             'id' => $course->id,
+            'created_by' => $course->created_by,
+            'enrollment_summary' => $withStats ? $this->enrollmentSummary($course) : null,
             'title' => $course->title,
             'slug' => $course->slug,
             'course_code' => $course->course_code,
@@ -283,6 +297,35 @@ class CourseController extends Controller
                     'is_online' => $s->is_online,
                 ])->values()
                 : null,
+        ];
+    }
+
+    /**
+     * Enrollment counters for the management view. Uses the aggregate counts
+     * loaded by the repository (withCount) and falls back to live queries when
+     * a course was loaded without them (e.g. right after create/update).
+     */
+    private function enrollmentSummary(Course $course): array
+    {
+        $count = function (string $attribute, callable $fallback) use ($course): int {
+            $value = $course->getAttribute($attribute);
+
+            return $value !== null ? (int) $value : (int) $fallback();
+        };
+
+        $enrollments = fn () => $course->enrollments();
+
+        return [
+            'enrolled' => $count('enrolled_count', fn () => $enrollments()->whereNotIn('status', ['rejected', 'cancelled'])->count()),
+            'pending_review' => $count('pending_review_count', fn () => $enrollments()->whereIn('status', ['applied', 'application_fee_paid'])->count()),
+            'admitted' => $count('admitted_count', fn () => $enrollments()->where('status', 'admitted')->count()),
+            'tuition_paid' => $count('tuition_paid_count', fn () => $enrollments()->whereHas('payments', fn ($p) => $p->where('fee_type', 'tuition')->where('status', 'paid'))->count()),
+            'in_progress' => $count('in_progress_count', fn () => $enrollments()->whereIn('status', ['tuition_paid', 'in_progress'])->count()),
+            'completed' => $count('completed_count', fn () => $enrollments()->whereIn('status', ['completed', 'certification', 'certified'])->count()),
+            'certified' => $count('certified_count', fn () => $enrollments()->where('status', 'certified')->count()),
+            'certificates_issued' => $count('certificates_issued_count', fn () => $course->certificates()->count()),
+            'rejected' => $count('rejected_count', fn () => $enrollments()->where('status', 'rejected')->count()),
+            'cancelled' => $count('cancelled_count', fn () => $enrollments()->where('status', 'cancelled')->count()),
         ];
     }
 

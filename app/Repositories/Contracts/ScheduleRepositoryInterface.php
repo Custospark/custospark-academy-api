@@ -15,6 +15,16 @@ interface ScheduleRepositoryInterface
     /** @return Collection<int, Schedule> */
     public function forCourseBetween(int $courseId, string $from, string $to): Collection;
 
+    public function find(int $id): ?Schedule;
+
+    /**
+     * Schedules across every course the learner has an active (non rejected /
+     * cancelled) enrollment in - powers the learner "Schedules" page.
+     *
+     * @return Collection<int, Schedule>
+     */
+    public function forLearner(int $userId): Collection;
+
     public function create(array $data): Schedule;
 
     public function update(Schedule $schedule, array $data): Schedule;

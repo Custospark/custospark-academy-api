@@ -35,13 +35,23 @@ class EnrollmentService
         return $this->enrollments->forUser((int) $user->id)->all();
     }
 
-    public function forAdmin(array $filters = []): array
+    /**
+     * Enrollments visible to staff. Admins see everything; instructors are
+     * scoped to enrollments on courses they created. Supports filtering by
+     * course, status and a free-text search (learner name/email, course title).
+     */
+    public function forAdmin(array $filters = [], ?User $viewer = null): array
     {
-        if (! empty($filters['status'])) {
-            return $this->enrollments->withStatus((string) $filters['status'])->all();
+        $instructorId = null;
+        if ($viewer !== null && ! $viewer->isAdmin()) {
+            $instructorId = (int) $viewer->id;
         }
 
-        return $this->enrollments->forCourse((int) ($filters['course_id'] ?? 0))->all();
+        $courseId = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
+        $status = isset($filters['status']) ? (string) $filters['status'] : null;
+        $search = isset($filters['q']) ? (string) $filters['q'] : null;
+
+        return $this->enrollments->queryForAdmin($courseId, $status, $search, $instructorId)->all();
     }
 
     public function getEnrollment(int $enrollmentId): ?Enrollment

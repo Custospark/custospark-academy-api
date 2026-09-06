@@ -138,10 +138,77 @@
         .issued-by { font-size: 11px; color: #475569; line-height: 1.5; }
         .issued-by .who { font-weight: 700; color: #0b2a55; font-size: 12px; }
         .verify-hint { font-size: 11px; color: #475569; margin-top: 4px; line-height: 1.5; }
+
+        /* PREVIEW watermark - tiled diagonal layer over the whole sheet so no
+           crop of the page reads as a clean certificate. Rendered above the
+           content (z-index) with the sample text muted underneath. */
+        .wm {
+            position: absolute;
+            left: 0; top: 0; right: 0; bottom: 0;
+            z-index: 50;
+            overflow: hidden;
+        }
+        .wm-line {
+            position: absolute;
+            left: -220px;
+            width: 1400px;
+            text-align: center;
+            font-family: 'DejaVu Sans', Helvetica, Arial, sans-serif;
+            font-size: 64px;
+            font-weight: 700;
+            letter-spacing: 18px;
+            text-transform: uppercase;
+            color: rgba(220, 38, 38, 0.20);
+            transform: rotate(-24deg);
+            white-space: nowrap;
+        }
+        .wm-main {
+            position: absolute;
+            left: 0; right: 0; top: 40%;
+            z-index: 60;
+            text-align: center;
+            font-family: 'DejaVu Sans', Helvetica, Arial, sans-serif;
+            font-size: 120px;
+            font-weight: 700;
+            letter-spacing: 26px;
+            text-transform: uppercase;
+            color: rgba(220, 38, 38, 0.30);
+            transform: rotate(-24deg);
+        }
+        .wm-badge {
+            position: absolute;
+            top: 30px; left: 0; right: 0;
+            z-index: 70;
+            text-align: center;
+        }
+        .wm-badge span {
+            display: inline-block;
+            background: #dc2626;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 6px 16px;
+            border-radius: 999px;
+        }
+        .is-preview .learner-name,
+        .is-preview .course { color: #94a3b8; }
+        .is-preview .value { color: #94a3b8; }
     </style>
 </head>
 <body>
-    <div class="sheet">
+    @php($isPreview = ! empty($isPreview))
+    <div class="sheet{{ $isPreview ? ' is-preview' : '' }}">
+        @if ($isPreview)
+            <div class="wm">
+                @foreach ([-40, 80, 200, 320, 440, 560] as $top)
+                    <div class="wm-line" style="top: {{ $top }}px;">Preview &middot; Not a certificate &middot; Preview &middot; Not a certificate</div>
+                @endforeach
+            </div>
+            <div class="wm-main">Preview</div>
+            <div class="wm-badge"><span>Sample preview &middot; not valid</span></div>
+        @endif
         <div class="frame"><div class="frame-inner"></div></div>
         <div class="corner tl"></div>
         <div class="corner tr"></div>
@@ -170,7 +237,7 @@
 
             <table class="fact-strip"><tbody>
                 <tr>
-                    <td><div class="hint">Awarded</div><div class="value">{{ $issuedAt ? $issuedAt->format('j F Y') : '-' }}</div></td>
+                    <td><div class="hint">Awarded</div><div class="value">{{ $isPreview ? 'Sample' : ($issuedAt ? $issuedAt->format('j F Y') : '-') }}</div></td>
                     <td class="sep"></td>
                     <td><div class="hint">Reference</div><div class="value mono">{{ $reference }}</div></td>
                 </tr>
@@ -183,13 +250,21 @@
                             <span class="who">Custospark Company Ltd</span> &middot; Kampala, Uganda
                         </div>
                         <div class="verify-hint">
-                            Scan the QR code or visit {{ $verifyUrl }} to verify this certificate.<br>
-                            Issued by the Academy Registry &middot; Reference {{ $reference }}.
+                            @if ($isPreview)
+                                This is a sample preview of the certificate design only. It has not been issued,
+                                carries no registry reference and cannot be verified.<br>
+                                Real certificates are issued by the Academy Registry after course completion.
+                            @else
+                                Scan the QR code or visit {{ $verifyUrl }} to verify this certificate.<br>
+                                Issued by the Academy Registry &middot; Reference {{ $reference }}.
+                            @endif
                         </div>
                     </td>
                     <td class="right">
                         <span class="qr-wrap">
-                            @if ($qrDataUri)
+                            @if ($isPreview)
+                                <div class="qr-caption">No verification code</div>
+                            @elseif ($qrDataUri)
                                 <img class="qr-img" src="{{ $qrDataUri }}" alt="Verify QR">
                                 <div class="qr-caption">Scan to verify</div>
                             @else

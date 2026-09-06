@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Certificate;
+use App\Models\Course;
+use App\Services\CertificatePdfService;
 use App\Services\CertificateService;
 use App\Services\EnrollmentService;
 use Illuminate\Http\JsonResponse;
@@ -111,7 +113,7 @@ class CertificateController extends Controller
         return response()->json(['data' => $this->serialize($certificate)]);
     }
 
-    /** Preview the certificate PDF inline (owner/admin). */
+    /** View the issued certificate PDF inline (owner/admin). */
     public function pdf(Request $request, int $id): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $certificate = $this->certificates->find((int) $id);
@@ -119,12 +121,48 @@ class CertificateController extends Controller
 
         $bytes = $this->certificates->pdfBytes($certificate);
 
-        return response()->streamDownload(
+        return response()->stream(
             function () use ($bytes): void {
                 echo $bytes;
             },
-            $this->certificates->filename($certificate).'.pdf',
-            ['Content-Type' => 'application/pdf'],
+            200,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="'.$this->certificates->filename($certificate).'.pdf"',
+            ],
+        );
+    }
+
+    /**
+     * Watermarked SAMPLE of a course's certificate design for the catalog.
+     *
+     * Abuse controls: authenticated + throttled route; published courses only;
+     * rendered from the Course (no certificate record is read or created); the
+     * sheet carries placeholder learner data, no award date, no reference, no
+     * QR, and a tiled diagonal PREVIEW watermark; served inline with no-store
+     * caching so it is never treated as a downloadable document.
+     */
+    public function preview(Request $request, int $courseId): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $course = Course::query()->find($courseId);
+        if ($course === null || ! $course->isPublished()) {
+            abort(404, 'Course not found.');
+        }
+
+        $bytes = app(CertificatePdfService::class)->renderPreviewPdf($course);
+
+        return response()->stream(
+            function () use ($bytes): void {
+                echo $bytes;
+            },
+            200,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="certificate-preview-sample.pdf"',
+                'Cache-Control' => 'no-store, max-age=0',
+                'X-Robots-Tag' => 'noindex, nofollow',
+                'X-Certificate-Preview' => 'sample',
+            ],
         );
     }
 

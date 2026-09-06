@@ -21,6 +21,9 @@ interface EnrollmentRepositoryInterface
     /** @return Collection<int, Enrollment> */
     public function withStatus(string $status): Collection;
 
+    /** @return Collection<int, Enrollment> */
+    public function queryForAdmin(?int $courseId = null, ?string $status = null, ?string $search = null, ?int $instructorId = null): Collection;
+
     public function create(array $data): Enrollment;
 
     public function update(Enrollment $enrollment, array $data): Enrollment;

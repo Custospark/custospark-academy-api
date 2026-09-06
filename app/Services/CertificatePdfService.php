@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Services\PdfService;
-use App\Services\Qr\QrCodeService;
 use App\Models\Certificate;
+use App\Models\Course;
+use App\Services\Qr\QrCodeService;
 
 /**
  * Renders professional course certificates (landscape A4) to PDF bytes via
@@ -62,6 +62,31 @@ class CertificatePdfService
     public function renderPdf(Certificate $certificate): string
     {
         return $this->pdf->render('certificates.certificate', $this->buildData($certificate), 'a4', 'landscape');
+    }
+
+    /**
+     * Watermarked SAMPLE of the certificate design for a course. This is not a
+     * certificate: it takes a Course (never a Certificate), uses placeholder
+     * learner data, has no award date, no registry reference and no QR code,
+     * and the sheet is covered by a tiled diagonal "PREVIEW" watermark so no
+     * crop of it can pass as a real document.
+     */
+    public function renderPreviewPdf(Course $course): string
+    {
+        return $this->pdf->render('certificates.certificate', [
+            'isPreview' => true,
+            'certificate' => null,
+            'student' => (object) ['name' => 'Sample Learner'],
+            'course' => $course,
+            'courseTitle' => $course->title,
+            'courseLevel' => $course->level,
+            'deliveryMode' => $course->delivery_mode,
+            'reference' => 'PREVIEW-SAMPLE',
+            'issuedAt' => null,
+            'verifyUrl' => null,
+            'logoDataUri' => $this->pdf->roundedLogoDataUri(),
+            'qrDataUri' => null,
+        ], 'a4', 'landscape');
     }
 
     public function filename(Certificate $certificate): string
