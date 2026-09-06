@@ -10,6 +10,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "barryvdh/laravel-dompdf": "^3.1",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^2.10.1"
@@ -24,11 +25,23 @@
         "phpunit/phpunit": "^11.5.50"
     },
     "autoload": {
+        "files": [
+            "app/Services/Qr/barcode.php"
+        ],
         "psr-4": {
             "App\\": "app/",
             "Database\\Factories\\": "database/factories/",
-            "Database\\Seeders\\": "database/seeders/"
-        }
+            "Database\\Seeders\\": "database/seeders/",
+            "Barryvdh\\DomPDF\\": "vendor/barryvdh/laravel-dompdf/src",
+            "Dompdf\\": "vendor/dompdf/dompdf/src",
+            "FontLib\\": "vendor/dompdf/php-font-lib/src/FontLib",
+            "Svg\\": "vendor/dompdf/php-svg-lib/src/Svg",
+            "Masterminds\\": "vendor/masterminds/html5/src",
+            "Sabberworm\\CSS\\": "vendor/sabberworm/php-css-parser/src"
+        },
+        "classmap": [
+            "vendor/dompdf/dompdf/lib"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

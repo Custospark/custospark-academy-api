@@ -63,7 +63,16 @@ class EnrollmentStateMachineService
 
     public function complete(Enrollment $enrollment): Enrollment
     {
-        return $this->transition($enrollment, Enrollment::STATUS_COMPLETED);
+        if (! $enrollment->canTransitionTo(Enrollment::STATUS_COMPLETED)) {
+            throw new DomainException(
+                "Cannot transition enrollment from {$enrollment->status} to ".Enrollment::STATUS_COMPLETED.'.'
+            );
+        }
+
+        return $this->enrollments->update($enrollment, [
+            'status' => Enrollment::STATUS_COMPLETED,
+            'completed_at' => now(),
+        ]);
     }
 
     public function markCertificateFeePaid(Enrollment $enrollment): Enrollment

@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Course;
+use App\Models\Enrollment;
+use App\Models\User;
 use App\Services\CourseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +20,10 @@ class CourseController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
+        // Public route: resolve a logged-in user (via bearer token) so the
+        // catalog can surface their enrollment per course, while staying
+        // fully accessible to guests.
+        $user = $request->user() ?? auth('sanctum')->user();
         $search = $request->query('q');
 
         $courses = match (true) {
@@ -28,7 +33,7 @@ class CourseController extends Controller
         };
 
         return response()->json(['data' => array_map(
-            fn (Course $c) => $this->serialize($c),
+            fn (Course $c) => $this->serialize($c, user: $user),
             $courses,
         )]);
     }
@@ -44,7 +49,9 @@ class CourseController extends Controller
             abort(404, 'Course not found.');
         }
 
-        return response()->json(['data' => $this->serialize($course, withSchedule: true)]);
+        $user = request()->user() ?? auth('sanctum')->user();
+
+        return response()->json(['data' => $this->serialize($course, withSchedule: true, user: $user)]);
     }
 
     public function manageIndex(Request $request): JsonResponse
@@ -134,13 +141,24 @@ class CourseController extends Controller
             'prerequisites' => ['sometimes', 'nullable', 'string'],
             'tags' => ['sometimes', 'nullable', 'array'],
             'tags.*' => ['string'],
+            'application_fee' => ['sometimes', 'numeric', 'min:0'],
+            'tuition_fee' => ['sometimes', 'numeric', 'min:0'],
+            'certificate_fee' => ['sometimes', 'numeric', 'min:0'],
         ]);
 
         if (isset($validated['slug'])) {
             $validated['slug'] = $this->generateUniqueSlug($validated['slug'], $id);
         }
 
-        return response()->json(['data' => $this->serialize($this->courses->updateCourse($course, $validated))]);
+        $course = $this->courses->updateCourse($course, $validated);
+
+        foreach (['application_fee' => 'application', 'tuition_fee' => 'tuition', 'certificate_fee' => 'certificate'] as $field => $feeType) {
+            if (isset($validated[$field]) && (float) $validated[$field] >= 0) {
+                $this->courses->setFee($course, $feeType, (float) $validated[$field]);
+            }
+        }
+
+        return response()->json(['data' => $this->serialize($course)]);
     }
 
     public function destroy(Request $request, int $id): JsonResponse
@@ -227,7 +245,7 @@ class CourseController extends Controller
         }
     }
 
-    private function serialize(Course $course, bool $withSchedule = false): array
+    private function serialize(Course $course, bool $withSchedule = false, ?User $user = null): array
     {
         return [
             'id' => $course->id,
@@ -248,6 +266,7 @@ class CourseController extends Controller
             'target_audience' => $course->target_audience,
             'prerequisites' => $course->prerequisites,
             'tags' => $course->tags,
+            'enrollment' => $user ? $this->serializeUserEnrollment($course, (int) $user->id) : null,
             'fees' => $course->fees->map(fn ($fee) => [
                 'fee_type' => $fee->fee_type,
                 'amount' => (float) $fee->amount,
@@ -264,6 +283,29 @@ class CourseController extends Controller
                     'is_online' => $s->is_online,
                 ])->values()
                 : null,
+        ];
+    }
+
+    private function serializeUserEnrollment(Course $course, int $userId): ?array
+    {
+        $enrollment = $course->enrollments()
+            ->where('user_id', $userId)
+            ->latest('id')
+            ->first();
+
+        if ($enrollment === null) {
+            return null;
+        }
+
+        return [
+            'id' => $enrollment->id,
+            'course_id' => $enrollment->course_id,
+            'status' => $enrollment->status,
+            'applied_at' => $enrollment->applied_at?->toIso8601String(),
+            'admitted_at' => $enrollment->admitted_at?->toIso8601String(),
+            'completed_at' => $enrollment->completed_at?->toIso8601String(),
+            'certified_at' => $enrollment->certified_at?->toIso8601String(),
+            'has_progress' => $enrollment->status === Enrollment::STATUS_IN_PROGRESS,
         ];
     }
 }

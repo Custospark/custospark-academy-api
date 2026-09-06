@@ -15,6 +15,7 @@ use App\Models\Lesson;
 use App\Models\Quiz;
 use App\Models\Resource;
 use App\Services\CourseContentService;
+use App\Services\EnrollmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class CourseContentController extends Controller
 {
     public function __construct(
         protected CourseContentService $content,
+        protected EnrollmentService $enrollments,
     ) {}
 
     /* --------------------------- Full structure -------------------------- */
@@ -46,6 +48,9 @@ class CourseContentController extends Controller
         ]);
 
         $submission = $this->content->gradeSubmission($submissionId, (int) $request->user()->id, $validated);
+
+        // Grading the last outstanding item may complete the learner's enrollment.
+        $this->enrollments->refreshCompletionAfterProgress($submission->user, $courseId);
 
         return response()->json([
             'data' => [

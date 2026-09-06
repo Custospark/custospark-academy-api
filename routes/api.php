@@ -23,6 +23,9 @@ Route::prefix('v1')->group(function () {
     Route::get('courses/{id}', [CourseController::class, 'show']);
     Route::get('courses/{id}/schedules', [ScheduleController::class, 'index']);
 
+    // Public certificate registry (no auth) - future SPA verify page.
+    Route::get('public/certificates/{reference}', [CertificateController::class, 'verifyPublicJson'])->name('certificates.public.json');
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -33,11 +36,15 @@ Route::prefix('v1')->group(function () {
         Route::post('enrollments/{id}/complete', [EnrollmentController::class, 'complete']);
 
         Route::post('enrollments/{id}/pay/{feeType}', [PaymentController::class, 'initiate']);
+        Route::get('payments', [PaymentController::class, 'index']);
         Route::get('payments/{paymentId}', [PaymentController::class, 'verify']);
+        Route::get('payments/{paymentId}/receipt', [PaymentController::class, 'receipt']);
 
         Route::get('certificates/mine', [CertificateController::class, 'mine']);
         Route::post('enrollments/{enrollmentId}/certificate', [CertificateController::class, 'issue']);
         Route::get('certificates/{id}', [CertificateController::class, 'show']);
+        Route::get('certificates/{id}/pdf', [CertificateController::class, 'pdf']);
+        Route::get('certificates/{id}/download', [CertificateController::class, 'download']);
 
         // Learner course actions: submissions, attempts, progress
         Route::get('courses/{courseId}/content', [LearnerContentController::class, 'content']);

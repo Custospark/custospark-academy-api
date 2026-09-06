@@ -42,17 +42,11 @@ class EnrollmentFlowTest extends TestCase
         $apply->assertCreated()->assertJsonPath('data.status', 'applied');
         $enrollmentId = $apply->json('data.id');
 
-        // application fee -> bypass gateway (local)
+        // application fee -> bypass gateway (local). Payment auto-admits (no human in the loop).
         $this->actingAsUser($user)->postJson("/api/v1/enrollments/{$enrollmentId}/pay/application")
             ->assertOk();
-        $this->assertDatabaseHas('enrollments', ['id' => $enrollmentId, 'status' => 'application_fee_paid']);
+        $this->assertDatabaseHas('enrollments', ['id' => $enrollmentId, 'status' => 'admitted']);
         $this->assertDatabaseHas('payments', ['enrollment_id' => $enrollmentId, 'fee_type' => 'application', 'status' => 'paid']);
-
-        // admit (admin)
-        $admin = User::factory()->admin()->create();
-        $this->actingAsUser($admin)->postJson("/api/v1/admin/enrollments/{$enrollmentId}/admit")
-            ->assertOk()
-            ->assertJsonPath('data.status', 'admitted');
 
         // tuition
         $this->actingAsUser($user)->postJson("/api/v1/enrollments/{$enrollmentId}/pay/tuition")
@@ -131,5 +125,45 @@ class EnrollmentFlowTest extends TestCase
         $ids = collect($response->json('data'))->pluck('id')->all();
         $this->assertContains($myEnrollment['id'], $ids);
         $this->assertNotContains((int) $myEnrollment['id'] + 1, $ids);
+    }
+
+    public function test_fully_sponsored_course_auto_advances_through_waived_fees(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $course = Course::factory()->published()->create(['created_by' => $admin->id]);
+        // No fees configured (or all zero) -> the whole course is sponsored.
+        CourseFee::factory()->application()->create(['course_id' => $course->id, 'amount' => 0]);
+        CourseFee::factory()->tuition()->create(['course_id' => $course->id, 'amount' => 0]);
+        CourseFee::factory()->certificate()->create(['course_id' => $course->id, 'amount' => 0]);
+
+        $user = $this->learner();
+        $apply = $this->actingAsUser($user)->postJson('/api/v1/enrollments', [
+            'course_id' => $course->id,
+        ]);
+        $apply->assertCreated()->assertJsonPath('data.status', 'tuition_paid');
+        $enrollmentId = $apply->json('data.id');
+
+        // No payment records should be created for waived fees.
+        $this->assertDatabaseMissing('payments', ['enrollment_id' => $enrollmentId]);
+
+        // Complete the course -> waived certificate fee moves to certification.
+        $this->actingAsUser($user)->postJson("/api/v1/enrollments/{$enrollmentId}/complete")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'certification');
+    }
+
+    public function test_sponsored_application_fee_still_auto_admits(): void
+    {
+        $admin = User::factory()->admin()->create();
+        // Application fee is waived, but tuition is charged.
+        $course = Course::factory()->published()->create(['created_by' => $admin->id]);
+        CourseFee::factory()->application()->create(['course_id' => $course->id, 'amount' => 0]);
+        CourseFee::factory()->tuition()->create(['course_id' => $course->id, 'amount' => 800000]);
+
+        $user = $this->learner();
+        // Paid flow auto-admits on app-fee payment; waived flow auto-admits on apply.
+        $this->actingAsUser($user)->postJson('/api/v1/enrollments', ['course_id' => $course->id])
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'admitted');
     }
 }

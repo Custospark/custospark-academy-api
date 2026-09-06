@@ -116,6 +116,11 @@ class EnrollmentController extends Controller
                 'reference' => $enrollment->certificate->certificate_reference,
                 'issued_at' => $enrollment->certificate->issued_at?->toIso8601String(),
             ] : null,
+            'fees' => $enrollment->course?->fees?->map(fn ($f) => [
+                'fee_type' => $f->fee_type,
+                'amount' => (float) $f->amount,
+                'currency' => $f->currency,
+            ])->values() ?? [],
         ];
     }
 }

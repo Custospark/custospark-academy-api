@@ -24,6 +24,7 @@ class CourseContentService
         protected CourseContentRepositoryInterface $content,
         protected SubmissionRepositoryInterface $submissions,
         protected CourseRepositoryInterface $courses,
+        protected CourseCompletionService $completion,
     ) {}
 
     /** Full course structure for the builder. */
@@ -382,10 +383,30 @@ class CourseContentService
         ]);
     }
 
-    /** Progress summary: completed lessons / total, percentage. */
+    /** Progress summary + the completion manifest (every required item type). */
     public function courseProgress(User $user, int $courseId): array
     {
-        $total = $this->courses->find($courseId)?->lessons()->count() ?? 0;
+        $course = $this->courses->find($courseId);
+
+        if ($course === null) {
+            return [
+                'total_lessons' => 0,
+                'completed_lessons' => 0,
+                'percent' => 0,
+                'completion' => [
+                    'total_required' => 0,
+                    'completed_required' => 0,
+                    'percent' => 100,
+                    'is_complete' => true,
+                    'delivery_mode' => 'self_paced',
+                    'auto_completes' => true,
+                    'categories' => [],
+                    'pending_instructor' => [],
+                ],
+            ];
+        }
+
+        $total = $course->lessons()->count();
         $completed = $this->submissions->lessonProgressForCourse($user->id, $courseId)
             ->filter(fn ($p) => $p->isCompleted())
             ->count();
@@ -394,6 +415,7 @@ class CourseContentService
             'total_lessons' => $total,
             'completed_lessons' => $completed,
             'percent' => $total > 0 ? (int) round(($completed / $total) * 100) : 0,
+            'completion' => $this->completion->evaluate($user, $course),
         ];
     }
 

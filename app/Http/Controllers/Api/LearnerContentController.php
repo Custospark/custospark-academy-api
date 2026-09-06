@@ -9,6 +9,7 @@ use App\Models\Lesson;
 use App\Models\Submission;
 use App\Repositories\Contracts\EnrollmentRepositoryInterface;
 use App\Services\CourseContentService;
+use App\Services\EnrollmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,6 +22,7 @@ class LearnerContentController extends Controller
     public function __construct(
         protected CourseContentService $content,
         protected EnrollmentRepositoryInterface $enrollments,
+        protected EnrollmentService $enrollmentService,
     ) {}
 
     /** Full course content for an enrolled learner (correct answers hidden). */
@@ -62,6 +64,8 @@ class LearnerContentController extends Controller
             ],
         );
 
+        $this->enrollmentService->refreshCompletionAfterProgress($request->user(), $courseId);
+
         return response()->json([
             'data' => $this->serializeSubmission($submission),
         ], 201);
@@ -69,6 +73,8 @@ class LearnerContentController extends Controller
 
     public function submitAttempt(Request $request, int $courseId, string $type, int $typeId): JsonResponse
     {
+        $this->requireEnrolled($courseId, $request->user());
+
         $validated = $request->validate([
             'answers' => ['required', 'array'],
         ]);
@@ -80,6 +86,8 @@ class LearnerContentController extends Controller
             $typeId,
             $validated['answers'],
         );
+
+        $this->enrollmentService->refreshCompletionAfterProgress($request->user(), $courseId);
 
         return response()->json([
             'data' => [
@@ -94,6 +102,8 @@ class LearnerContentController extends Controller
 
     public function markLesson(Request $request, int $courseId, int $lessonId): JsonResponse
     {
+        $this->requireEnrolled($courseId, $request->user());
+
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:not_started,in_progress,completed'],
         ]);
@@ -106,6 +116,8 @@ class LearnerContentController extends Controller
             $lesson,
             $validated['status'],
         );
+
+        $this->enrollmentService->refreshCompletionAfterProgress($request->user(), $courseId);
 
         return response()->json([
             'data' => [

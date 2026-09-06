@@ -7,10 +7,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Services\Payment\Contracts\PaymentGatewayInterface;
+use App\Services\Payment\PaymentReceiptService;
 use App\Services\PaymentService;
 use App\Services\EnrollmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class PaymentController extends Controller
 {
@@ -18,7 +20,40 @@ class PaymentController extends Controller
         protected PaymentService $payments,
         protected EnrollmentService $enrollments,
         protected PaymentGatewayInterface $gateway,
+        protected PaymentReceiptService $receipts,
     ) {}
+
+    /** The authenticated user's payment history with receipts. */
+    public function index(Request $request): JsonResponse
+    {
+        $items = $this->payments->forUser((int) $request->user()->id);
+
+        return response()->json([
+            'data' => array_map(fn (Payment $payment) => $this->serializePayment($payment), $items),
+        ]);
+    }
+
+    /** Stream a branded PDF receipt for a payment the user owns. */
+    public function receipt(Request $request, int $paymentId): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $payment = $this->payments->find($paymentId);
+        if ($payment === null) {
+            abort(404, 'Payment not found.');
+        }
+        if ((int) $payment->user_id !== (int) $request->user()->id && ! $request->user()->isAdmin()) {
+            abort(403, 'You cannot view this receipt.');
+        }
+
+        $content = $this->receipts->renderPdf($payment);
+
+        return response()->streamDownload(
+            function () use ($content): void {
+                echo $content;
+            },
+            $this->receipts->filename($payment).'.pdf',
+            ['Content-Type' => 'application/pdf'],
+        );
+    }
 
     public function initiate(Request $request, int $enrollmentId, string $feeType): JsonResponse
     {
@@ -32,9 +67,26 @@ class PaymentController extends Controller
             abort(403, 'You cannot pay for this enrollment.');
         }
 
-        $payment = $this->payments->createForFee($enrollment, $user, $feeType);
+        $result = $this->payments->payFee($enrollment, $user, $feeType);
 
-        $result = $this->gateway->initiate([
+        // No fee configured or sponsored (amount 0): state already advanced.
+        if ($result['auto_advanced']) {
+            $enrollment->refresh();
+
+            return response()->json([
+                'data' => [
+                    'payment' => null,
+                    'enrollment' => $this->serializeEnrollment($enrollment),
+                    'redirect_url' => null,
+                    'type' => 'auto_advanced',
+                    'message' => 'No fee required - enrollment advanced.',
+                ],
+            ]);
+        }
+
+        $payment = $result['payment'];
+
+        $gatewayResult = $this->gateway->initiate([
             'payment_id' => $payment->id,
             'amount' => (float) $payment->amount,
             'currency' => $payment->currency,
@@ -45,24 +97,26 @@ class PaymentController extends Controller
             'country_code' => 'UG',
         ]);
 
-        if (isset($result['gateway_ref']) && $result['gateway_ref']) {
-            $this->payments->updateReference($payment, $result['gateway_ref']);
+        if (isset($gatewayResult['gateway_ref']) && $gatewayResult['gateway_ref']) {
+            $this->payments->updateReference($payment, $gatewayResult['gateway_ref']);
         }
 
-        if (($result['type'] ?? null) === 'bypass') {
+        if (($gatewayResult['type'] ?? null) === 'bypass') {
             $payment = $this->payments->markPaid(
                 $payment,
-                $result['gateway_ref'] ?? null,
-                $result['raw_response'] ?? [],
+                $gatewayResult['gateway_ref'] ?? null,
+                $gatewayResult['raw_response'] ?? [],
             );
+            $enrollment->refresh();
         }
 
         return response()->json([
             'data' => [
                 'payment' => $this->serializePayment($payment),
-                'redirect_url' => $result['redirect_url'] ?? null,
-                'type' => $result['type'] ?? 'redirect',
-                'message' => $result['message'] ?? null,
+                'enrollment' => $this->serializeEnrollment($enrollment),
+                'redirect_url' => $gatewayResult['redirect_url'] ?? null,
+                'type' => $gatewayResult['type'] ?? 'redirect',
+                'message' => $gatewayResult['message'] ?? null,
             ],
         ]);
     }
@@ -118,6 +172,30 @@ class PaymentController extends Controller
             abort(403, 'You cannot view this payment.');
         }
 
+        // While a payment is still in flight, pull the fresh status from the
+        // gateway so polling/manual "check status" reflects reality, not the
+        // last snapshot. markPaid advances the enrollment when it succeeds.
+        if (in_array($payment->status, [Payment::STATUS_PENDING, Payment::STATUS_PROCESSING], true)
+            && $payment->reference !== null && $payment->reference !== '') {
+            try {
+                $result = $this->gateway->verify($payment->reference);
+                if ($result['success']) {
+                    $payment = $this->payments->markPaid(
+                        $payment,
+                        $result['gateway_txn_id'] ?? $payment->reference,
+                        $result['raw_response'] ?? [],
+                    );
+                } elseif (($result['status'] ?? null) === 'failed') {
+                    $payment = $this->payments->markFailed($payment, $result['message'] ?? 'Payment failed.');
+                }
+            } catch (\Throwable $e) {
+                Log::error('[PaymentController] Gateway verify failed', [
+                    'payment_id' => $paymentId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         return response()->json(['data' => $this->serializePayment($payment)]);
     }
 
@@ -145,13 +223,30 @@ class PaymentController extends Controller
         return [
             'id' => $payment->id,
             'enrollment_id' => $payment->enrollment_id,
+            'course_title' => $payment->enrollment?->course?->title,
             'fee_type' => $payment->fee_type,
             'amount' => (float) $payment->amount,
             'currency' => $payment->currency,
             'status' => $payment->status,
             'method' => $payment->method,
             'reference' => $payment->reference,
+            'invoice_number' => $this->receipts->invoiceNumber($payment),
             'paid_at' => $payment->paid_at?->toIso8601String(),
+            'created_at' => $payment->created_at?->toIso8601String(),
+            'receipt_url' => $payment->isPaid() && (float) $payment->amount > 0
+                ? "/api/v1/payments/{$payment->id}/receipt"
+                : null,
+        ];
+    }
+
+    private function serializeEnrollment(\App\Models\Enrollment $enrollment): array
+    {
+        return [
+            'id' => $enrollment->id,
+            'course_id' => $enrollment->course_id,
+            'status' => $enrollment->status,
+            'applied_at' => $enrollment->applied_at?->toIso8601String(),
+            'admitted_at' => $enrollment->admitted_at?->toIso8601String(),
         ];
     }
 }

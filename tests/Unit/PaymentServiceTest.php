@@ -24,6 +24,8 @@ class PaymentServiceTest extends TestCase
         $admin = User::factory()->admin()->create();
         $course = Course::factory()->published()->create(['created_by' => $admin->id]);
         CourseFee::factory()->application()->create(['course_id' => $course->id, 'amount' => 50000]);
+        // Tuition is charged, so paying the app fee should stop at admitted.
+        CourseFee::factory()->tuition()->create(['course_id' => $course->id, 'amount' => 800000]);
 
         $enrollments = app(EnrollmentStateMachineService::class);
         $payments = app(PaymentService::class);
@@ -38,7 +40,8 @@ class PaymentServiceTest extends TestCase
         $payments->markPaid($payment, 'INLINE-TEST');
 
         $this->assertSame(Payment::STATUS_PAID, $payment->fresh()->status);
-        $this->assertSame(Enrollment::STATUS_APPLICATION_FEE_PAID, $enrollment->fresh()->status);
+        // No human in the loop: paying the application fee auto-admits.
+        $this->assertSame(Enrollment::STATUS_ADMITTED, $enrollment->fresh()->status);
         $this->assertTrue($enrollment->fresh()->hasPaidApplication());
     }
 

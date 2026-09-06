@@ -15,6 +15,10 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    'frontend_url' => env('FRONTEND_URL', 'https://academy.custospark.com'),
+
+    'certificate_verify_url' => env('CERTIFICATE_VERIFY_URL', env('APP_URL', 'http://localhost')),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment
@@ -53,8 +57,6 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
-
-    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
     /*
     |--------------------------------------------------------------------------
