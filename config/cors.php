@@ -26,7 +26,7 @@ return [
         '/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/',
         '/^https:\/\/(www\.)?custospark\.com$/',
         '/^https:\/\/academy\.custospark\.com$/',
-        '/^https:\/\/staging-academy\.custospark\.com$/',
+        '/^https:\/\/academy-staging\.custospark\.com$/',
     ],
 
     'allowed_headers' => ['*'],
