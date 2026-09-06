@@ -23,7 +23,7 @@ return new class extends Migration
             $table->timestamp('submitted_at')->nullable();
             $table->timestamps();
 
-            $table->index(['user_id', 'assessmentable_type', 'assessmentable_id']);
+            $table->index(['user_id', 'assessmentable_type', 'assessmentable_id'], 'assessment_attempts_owner_typed_idx');
         });
     }
 
