@@ -15,10 +15,21 @@ return new class extends Migration
 {
     public function up(): void
     {
-        foreach (['quizzes', 'exercises', 'exams', 'assignments'] as $table) {
-            Schema::table($table, function (Blueprint $table) {
-                $table->timestamp('opens_at')->nullable()->after('time_limit_minutes');
-                $table->timestamp('closes_at')->nullable()->after('opens_at');
+        $after = [
+            'quizzes' => 'time_limit_minutes',
+            'exercises' => 'time_limit_minutes',
+            'exams' => 'time_limit_minutes',
+            'assignments' => 'due_after_days',
+        ];
+
+        foreach ($after as $table => $afterColumn) {
+            Schema::table($table, function (Blueprint $table) use ($afterColumn) {
+                if (! Schema::hasColumn($table->getTable(), 'opens_at')) {
+                    $table->timestamp('opens_at')->nullable()->after($afterColumn);
+                }
+                if (! Schema::hasColumn($table->getTable(), 'closes_at')) {
+                    $table->timestamp('closes_at')->nullable()->after('opens_at');
+                }
             });
         }
     }
