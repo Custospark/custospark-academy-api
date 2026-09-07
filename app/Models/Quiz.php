@@ -21,6 +21,8 @@ class Quiz extends Model
         'description',
         'passing_score',
         'time_limit_minutes',
+        'opens_at',
+        'closes_at',
         'sort_order',
         'is_published',
     ];
@@ -30,6 +32,8 @@ class Quiz extends Model
         return [
             'passing_score' => 'integer',
             'time_limit_minutes' => 'integer',
+            'opens_at' => 'datetime',
+            'closes_at' => 'datetime',
             'sort_order' => 'integer',
             'is_published' => 'boolean',
         ];

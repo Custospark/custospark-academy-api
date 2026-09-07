@@ -28,6 +28,8 @@ class Exercise extends Model
         'max_score',
         'passing_score',
         'time_limit_minutes',
+        'opens_at',
+        'closes_at',
         'sort_order',
         'is_published',
     ];
@@ -38,6 +40,8 @@ class Exercise extends Model
             'max_score' => 'integer',
             'passing_score' => 'integer',
             'time_limit_minutes' => 'integer',
+            'opens_at' => 'datetime',
+            'closes_at' => 'datetime',
             'sort_order' => 'integer',
             'is_published' => 'boolean',
         ];

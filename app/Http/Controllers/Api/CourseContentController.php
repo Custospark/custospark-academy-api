@@ -17,6 +17,7 @@ use App\Models\Resource;
 use App\Services\CourseContentService;
 use App\Services\EnrollmentService;
 use App\Services\QuestionImportService;
+use App\Services\AssessmentResultsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class CourseContentController extends Controller
         protected CourseContentService $content,
         protected EnrollmentService $enrollments,
         protected QuestionImportService $questions,
+        protected AssessmentResultsService $results,
     ) {}
 
     /* --------------------------- Full structure -------------------------- */
@@ -417,6 +419,8 @@ class CourseContentController extends Controller
             'instructions' => ['nullable', 'string'],
             'submission_type' => ['nullable', 'string', 'in:text,file,link'],
             'due_after_days' => ['nullable', 'integer', 'min:0'],
+            'opens_at' => ['nullable', 'date'],
+            'closes_at' => ['nullable', 'date'],
             'max_score' => ['nullable', 'integer', 'min:0'],
             'lesson_id' => ['nullable', 'integer', 'exists:lessons,id'],
             'sort_order' => ['nullable', 'integer'],
@@ -439,6 +443,8 @@ class CourseContentController extends Controller
             'instructions' => ['sometimes', 'nullable', 'string'],
             'submission_type' => ['sometimes', 'string', 'in:text,file,link'],
             'due_after_days' => ['sometimes', 'nullable', 'integer', 'min:0'],
+            'opens_at' => ['sometimes', 'nullable', 'date'],
+            'closes_at' => ['sometimes', 'nullable', 'date'],
             'max_score' => ['sometimes', 'integer', 'min:0'],
             'lesson_id' => ['sometimes', 'nullable', 'integer', 'exists:lessons,id'],
             'sort_order' => ['sometimes', 'integer'],
@@ -500,6 +506,46 @@ class CourseContentController extends Controller
         ]);
 
         $result = $this->questions->import($kind, $course, $parentId, $validated['file']);
+
+        return response()->json(['data' => $result], 201);
+    }
+
+    /* ------------------------- Results Excel import ------------------------ */
+
+    /** Download the fill-in template for bulk result uploads. */
+    public function templateResults(Request $request, string|int $courseId): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $courseId = $this->courseKey($courseId);
+        $course = Course::query()->findOrFail($courseId);
+        $this->authorizeCourse($course, $request->user());
+
+        $bytes = $this->results->templateBytes();
+
+        return response()->streamDownload(
+            function () use ($bytes): void {
+                echo $bytes;
+            },
+            'results-template.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
+    }
+
+    /** Bulk-upload instructor results (exams, exercises, assignments). */
+    public function importResults(Request $request, string|int $courseId, string $kind, int $parentId): JsonResponse
+    {
+        $courseId = $this->courseKey($courseId);
+        $course = Course::query()->findOrFail($courseId);
+        $this->authorizeCourse($course, $request->user());
+
+        if (! in_array($kind, ['exam', 'exercise', 'assignment'], true)) {
+            abort(404, 'Results upload is for exams, exercises and assignments.');
+        }
+
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+        ]);
+
+        $result = $this->results->import($kind, $course, $parentId, $validated['file'], (int) $request->user()->id);
 
         return response()->json(['data' => $result], 201);
     }
@@ -567,6 +613,8 @@ class CourseContentController extends Controller
             'description' => ['nullable', 'string'],
             'passing_score' => ['nullable', 'integer', 'min:0', 'max:100'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:0'],
+            'opens_at' => ['nullable', 'date'],
+            'closes_at' => ['nullable', 'date'],
             'lesson_id' => ['nullable', 'integer', 'exists:lessons,id'],
             'sort_order' => ['nullable', 'integer'],
             'is_published' => ['nullable', 'boolean'],
@@ -591,6 +639,7 @@ class CourseContentController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'instructions' => ['nullable', 'string'],
+            'type' => ['nullable', 'string', 'in:quiz,practical'],
             'max_score' => ['nullable', 'integer', 'min:0'],
             'passing_score' => ['nullable', 'integer', 'min:0', 'max:100'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:0'],
@@ -718,6 +767,8 @@ class CourseContentController extends Controller
             'description' => $quiz->description,
             'passing_score' => $quiz->passing_score,
             'time_limit_minutes' => $quiz->time_limit_minutes,
+            'opens_at' => $quiz->opens_at?->toIso8601String(),
+            'closes_at' => $quiz->closes_at?->toIso8601String(),
             'is_published' => $quiz->is_published,
             'questions' => $quiz->questions->map(fn ($q) => $this->serializeQuestion($q, 'quiz'))->values(),
         ];
@@ -736,6 +787,8 @@ class CourseContentController extends Controller
             'max_score' => $exercise->max_score,
             'passing_score' => $exercise->passing_score,
             'time_limit_minutes' => $exercise->time_limit_minutes,
+            'opens_at' => $exercise->opens_at?->toIso8601String(),
+            'closes_at' => $exercise->closes_at?->toIso8601String(),
             'is_published' => $exercise->is_published,
             'questions' => $exercise->questions->map(fn ($q) => $this->serializeQuestion($q, 'exercise'))->values(),
         ];
@@ -752,6 +805,8 @@ class CourseContentController extends Controller
             'max_score' => $exam->max_score,
             'passing_score' => $exam->passing_score,
             'time_limit_minutes' => $exam->time_limit_minutes,
+            'opens_at' => $exam->opens_at?->toIso8601String(),
+            'closes_at' => $exam->closes_at?->toIso8601String(),
             'is_published' => $exam->is_published,
             'questions' => $exam->questions->map(fn ($q) => $this->serializeQuestion($q, 'exam'))->values(),
         ];
@@ -781,6 +836,8 @@ class CourseContentController extends Controller
             'instructions' => $assignment->instructions,
             'submission_type' => $assignment->submission_type,
             'due_after_days' => $assignment->due_after_days,
+            'opens_at' => $assignment->opens_at?->toIso8601String(),
+            'closes_at' => $assignment->closes_at?->toIso8601String(),
             'max_score' => $assignment->max_score,
             'is_published' => $assignment->is_published,
         ];

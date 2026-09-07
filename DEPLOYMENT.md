@@ -149,7 +149,10 @@ and **owner approval**.
 
 ### 5A.1 Pre-flight (local)
 
-- `Backend`: `git status` clean, on `master`; required gates green (`composer vera:fast`, and if migrations/routes changed also the §4 extended checks). If frontend changed too: `Frontend` `npm run vera:fast` green.
+- `Backend`: `git status` clean, on `master`; after every pull run **`composer sync`**
+  (vendor in step with `composer.lock` + database migrated — skipping this causes
+  missing-column / missing-class runtime errors); required gates green
+  (`composer vera:fast`, and if migrations/routes changed also the §4 extended checks). If frontend changed too: `Frontend` `npm run vera:fast` green.
 - Push **both** repos to GitHub BEFORE deploying — the server only ever mirrors `origin/master`:
   - `Backend`: `git push origin master`
   - `Frontend`: `git push origin master`

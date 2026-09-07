@@ -26,6 +26,8 @@ class Assignment extends Model
         'instructions',
         'submission_type',
         'due_after_days',
+        'opens_at',
+        'closes_at',
         'max_score',
         'sort_order',
         'is_published',
@@ -35,6 +37,8 @@ class Assignment extends Model
     {
         return [
             'due_after_days' => 'integer',
+            'opens_at' => 'datetime',
+            'closes_at' => 'datetime',
             'max_score' => 'integer',
             'sort_order' => 'integer',
             'is_published' => 'boolean',

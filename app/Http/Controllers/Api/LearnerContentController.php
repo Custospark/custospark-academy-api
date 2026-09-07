@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AssessmentAttempt;
+use App\Models\Assignment;
 use App\Models\Course;
+use App\Models\Exam;
+use App\Models\Exercise;
 use App\Models\Lesson;
+use App\Models\Quiz;
 use App\Models\Submission;
 use App\Repositories\Contracts\EnrollmentRepositoryInterface;
 use App\Services\CourseContentService;
@@ -35,7 +40,7 @@ class LearnerContentController extends Controller
         $course = $this->content->fullCourse($courseId);
 
         return response()->json([
-            'data' => $this->serializeLearnerCourse($course),
+            'data' => $this->serializeLearnerCourse($course, (int) $request->user()->id),
         ]);
     }
 
@@ -164,8 +169,52 @@ class LearnerContentController extends Controller
         }
     }
 
-    protected function serializeLearnerCourse(\App\Models\Course $course): array
+    protected function serializeLearnerCourse(\App\Models\Course $course, int $userId): array
     {
+        // Latest submission / attempt per assessment, so learners see their
+        // status (submitted, graded, score) and open/close windows inline.
+        $subs = Submission::query()
+            ->where('user_id', $userId)
+            ->where('course_id', $course->id)
+            ->orderByDesc('submitted_at')
+            ->get()
+            ->mapWithKeys(fn ($s) => [$s->submissionable_type.'#'.$s->submissionable_id => $s]);
+        $attempts = AssessmentAttempt::query()
+            ->where('user_id', $userId)
+            ->where('course_id', $course->id)
+            ->orderByDesc('submitted_at')
+            ->get()
+            ->mapWithKeys(fn ($a) => [$a->assessmentable_type.'#'.$a->assessmentable_id => $a]);
+        $attemptStatus = function (string $type, int $id) use ($attempts): ?array {
+            $a = $attempts[$type.'#'.$id] ?? null;
+            if ($a === null) {
+                return null;
+            }
+
+            return [
+                'submitted' => true,
+                'score' => $a->score,
+                'max_score' => $a->max_score,
+                'is_passed' => (bool) $a->is_passed,
+                'submitted_at' => $a->submitted_at?->toIso8601String(),
+            ];
+        };
+        $submissionStatus = function (string $type, int $id) use ($subs): ?array {
+            $s = $subs[$type.'#'.$id] ?? null;
+            if ($s === null) {
+                return null;
+            }
+
+            return [
+                'submitted' => true,
+                'status' => $s->status,
+                'score' => $s->score,
+                'feedback' => $s->feedback,
+                'submitted_at' => $s->submitted_at?->toIso8601String(),
+                'graded_at' => $s->graded_at?->toIso8601String(),
+            ];
+        };
+
         return [
             'id' => $course->id,
             'title' => $course->title,
@@ -210,6 +259,8 @@ class LearnerContentController extends Controller
                 'description' => $q->description,
                 'passing_score' => $q->passing_score,
                 'time_limit_minutes' => $q->time_limit_minutes,
+                'opens_at' => $q->opens_at?->toIso8601String(),
+                'closes_at' => $q->closes_at?->toIso8601String(),
                 'questions' => $q->questions->map(fn ($question) => [
                     'id' => $question->id,
                     'question' => $question->question,
@@ -217,6 +268,7 @@ class LearnerContentController extends Controller
                     'options' => $question->options,
                     'points' => $question->points,
                 ])->values(),
+                'my_status' => $attemptStatus(Quiz::class, $q->id),
             ])->values(),
             'exercises' => $course->exercises->map(fn ($e) => [
                 'id' => $e->id,
@@ -226,6 +278,8 @@ class LearnerContentController extends Controller
                 'type' => $e->type,
                 'max_score' => $e->max_score,
                 'passing_score' => $e->passing_score,
+                'opens_at' => $e->opens_at?->toIso8601String(),
+                'closes_at' => $e->closes_at?->toIso8601String(),
                 'questions' => $e->questions->map(fn ($question) => [
                     'id' => $question->id,
                     'question' => $question->question,
@@ -233,6 +287,9 @@ class LearnerContentController extends Controller
                     'options' => $question->options,
                     'points' => $question->points,
                 ])->values(),
+                'my_status' => $e->file_path !== null
+                    ? $submissionStatus(Exercise::class, $e->id)
+                    : $attemptStatus(Exercise::class, $e->id),
             ])->values(),
             'exams' => $course->exams->map(fn ($x) => [
                 'id' => $x->id,
@@ -242,6 +299,8 @@ class LearnerContentController extends Controller
                 'max_score' => $x->max_score,
                 'passing_score' => $x->passing_score,
                 'time_limit_minutes' => $x->time_limit_minutes,
+                'opens_at' => $x->opens_at?->toIso8601String(),
+                'closes_at' => $x->closes_at?->toIso8601String(),
                 'questions' => $x->questions->map(fn ($question) => [
                     'id' => $question->id,
                     'question' => $question->question,
@@ -249,6 +308,7 @@ class LearnerContentController extends Controller
                     'options' => $question->options,
                     'points' => $question->points,
                 ])->values(),
+                'my_status' => $submissionStatus(Exam::class, $x->id),
             ])->values(),
             'assignments' => $course->assignments->map(fn ($a) => [
                 'id' => $a->id,
@@ -256,6 +316,9 @@ class LearnerContentController extends Controller
                 'instructions' => $a->instructions,
                 'submission_type' => $a->submission_type,
                 'max_score' => $a->max_score,
+                'opens_at' => $a->opens_at?->toIso8601String(),
+                'closes_at' => $a->closes_at?->toIso8601String(),
+                'my_status' => $submissionStatus(Assignment::class, $a->id),
             ])->values(),
         ];
     }

@@ -163,6 +163,7 @@ class CourseContentService
         }
     }
 
+
     /* ------------------------------- Quizzes ------------------------------ */
 
     public function createQuiz(int $courseId, array $data): \App\Models\Quiz
@@ -174,6 +175,8 @@ class CourseContentService
             'description' => $data['description'] ?? null,
             'passing_score' => $data['passing_score'] ?? 50,
             'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
+            'opens_at' => $data['opens_at'] ?? null,
+            'closes_at' => $data['closes_at'] ?? null,
             'sort_order' => $data['sort_order'] ?? 0,
             'is_published' => $data['is_published'] ?? false,
         ]);
@@ -223,6 +226,8 @@ class CourseContentService
             'max_score' => $data['max_score'] ?? 100,
             'passing_score' => $data['passing_score'] ?? 50,
             'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
+            'opens_at' => $data['opens_at'] ?? null,
+            'closes_at' => $data['closes_at'] ?? null,
             'sort_order' => $data['sort_order'] ?? 0,
             'is_published' => $data['is_published'] ?? false,
         ]);
@@ -277,6 +282,8 @@ class CourseContentService
             'max_score' => $data['max_score'] ?? 100,
             'passing_score' => $data['passing_score'] ?? 50,
             'time_limit_minutes' => $data['time_limit_minutes'] ?? null,
+            'opens_at' => $data['opens_at'] ?? null,
+            'closes_at' => $data['closes_at'] ?? null,
             'sort_order' => $data['sort_order'] ?? 0,
             'is_published' => $data['is_published'] ?? false,
         ]);
@@ -330,6 +337,8 @@ class CourseContentService
             'instructions' => $data['instructions'] ?? null,
             'submission_type' => $data['submission_type'] ?? \App\Models\Assignment::SUBMISSION_TEXT,
             'due_after_days' => $data['due_after_days'] ?? null,
+            'opens_at' => $data['opens_at'] ?? null,
+            'closes_at' => $data['closes_at'] ?? null,
             'max_score' => $data['max_score'] ?? 100,
             'sort_order' => $data['sort_order'] ?? 0,
             'is_published' => $data['is_published'] ?? false,
@@ -351,6 +360,10 @@ class CourseContentService
     public function submitWork(User $user, int $courseId, string $type, int $typeId, array $data): Submission
     {
         $morph = $this->resolveSubmissionable($type, $typeId);
+        $model = $morph['type']::query()->find($morph['id']);
+        if ($model !== null) {
+            $this->assertWindowOpen($model, strtolower(class_basename($model)));
+        }
 
         $submission = $this->submissions->create([
             'user_id' => $user->id,
@@ -367,6 +380,22 @@ class CourseContentService
         $this->autoGradeIfPossible($submission, $data);
 
         return $submission->fresh();
+    }
+
+    /** Block submissions outside the instructor's open/close window. */
+    protected function assertWindowOpen(object $model, string $label): void
+    {
+        $now = now();
+        if (! empty($model->opens_at) && $now->lt($model->opens_at)) {
+            throw ValidationException::withMessages([
+                'assessment' => "This {$label} opens on {$model->opens_at->format('j M Y, H:i')}.",
+            ]);
+        }
+        if (! empty($model->closes_at) && $now->gt($model->closes_at)) {
+            throw ValidationException::withMessages([
+                'assessment' => "This {$label} closed on {$model->closes_at->format('j M Y, H:i')}.",
+            ]);
+        }
     }
 
     public function gradeSubmission(int $submissionId, int $graderId, array $data): Submission
@@ -389,6 +418,7 @@ class CourseContentService
     {
         $morph = $this->resolveAssessmentable($type, $typeId);
         $model = $morph['model'];
+        $this->assertWindowOpen($model, strtolower(class_basename($model)));
         $questions = $model->questions;
 
         $score = 0;

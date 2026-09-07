@@ -73,6 +73,10 @@ Route::prefix('v1')->group(function () {
             Route::post('enrollments/{id}/admit', [EnrollmentController::class, 'admit']);
             Route::post('enrollments/{id}/reject', [EnrollmentController::class, 'reject']);
 
+            // Course audience: mass email + learner roster export.
+            Route::post('courses/{courseId}/announce', [EnrollmentController::class, 'announce']);
+            Route::get('courses/{courseId}/learners/export', [EnrollmentController::class, 'exportLearners']);
+
             Route::post('courses', [CourseController::class, 'store']);
             Route::put('courses/{id}', [CourseController::class, 'update']);
             Route::delete('courses/{id}', [CourseController::class, 'destroy']);
@@ -121,6 +125,11 @@ Route::prefix('v1')->group(function () {
             Route::get('courses/{courseId}/questions/template', [CourseContentController::class, 'templateQuestions']);
             Route::post('courses/{courseId}/{kind}/{parentId}/questions/import', [CourseContentController::class, 'importQuestions'])
                 ->whereIn('kind', ['quiz', 'exercise', 'exam']);
+
+            // Bulk instructor results: template + filled-file import.
+            Route::get('courses/{courseId}/results/template', [CourseContentController::class, 'templateResults']);
+            Route::post('courses/{courseId}/{kind}/{parentId}/results/import', [CourseContentController::class, 'importResults'])
+                ->whereIn('kind', ['exam', 'exercise', 'assignment']);
             Route::put('courses/{courseId}/submissions/{submissionId}/grade', [CourseContentController::class, 'gradeSubmission']);
         });
     });

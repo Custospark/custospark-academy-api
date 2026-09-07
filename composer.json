@@ -66,6 +66,10 @@
             "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
+        "sync": [
+            "@composer install --no-interaction",
+            "@php artisan migrate --force"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
