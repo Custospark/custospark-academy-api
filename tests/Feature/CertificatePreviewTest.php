@@ -89,6 +89,10 @@ class CertificatePreviewTest extends TestCase
         $this->assertStringNotContainsString('Scan to verify', $html);
         $this->assertStringNotContainsString('/verify/', $html);
         $this->assertStringNotContainsString('CSA-', $html);
+
+        // Brand appears exactly once visually: logo-less fallback replaces the
+        // institution line instead of stacking under it.
+        $this->assertSame(1, substr_count($html, '>Custospark Academy<'));
     }
 
     public function test_real_certificate_render_has_no_watermark(): void

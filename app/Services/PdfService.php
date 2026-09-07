@@ -16,6 +16,29 @@ class PdfService
 {
     private const LOGO_PATH = 'brand/custospark_academy_logo.png';
 
+    /**
+     * Raw logo bytes: operator-overridable file in storage first, then the
+     * repo-bundled fallback (resources/brand) so documents never lose the
+     * brand on fresh clones and deploys.
+     */
+    protected function logoBytes(): ?string
+    {
+        $stored = Storage::disk('local')->get(self::LOGO_PATH);
+        if (is_string($stored) && $stored !== '') {
+            return $stored;
+        }
+
+        $bundled = base_path('resources/brand/custospark_academy_logo.png');
+        if (is_file($bundled)) {
+            $bytes = file_get_contents($bundled);
+            if (is_string($bytes) && $bytes !== '') {
+                return $bytes;
+            }
+        }
+
+        return null;
+    }
+
     public function render(string $view, array $data, string $paper = 'a4', string $orientation = 'portrait'): string
     {
         return (string) DomPdf::loadView($view, $data)
@@ -30,9 +53,9 @@ class PdfService
      */
     public function logoDataUri(): ?string
     {
-        $bytes = Storage::disk('local')->get(self::LOGO_PATH);
+        $bytes = $this->logoBytes();
 
-        if ($bytes === null || $bytes === false) {
+        if ($bytes === null) {
             return null;
         }
 
@@ -46,8 +69,8 @@ class PdfService
      */
     public function roundedLogoDataUri(int $radiusPercent = 10): ?string
     {
-        $bytes = Storage::disk('local')->get(self::LOGO_PATH);
-        if ($bytes === null || $bytes === false) {
+        $bytes = $this->logoBytes();
+        if ($bytes === null) {
             return null;
         }
 

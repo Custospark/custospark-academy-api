@@ -175,10 +175,10 @@
             <div class="brand">
                 @if ($logoDataUri)
                     <img class="brand-img" src="{{ $logoDataUri }}" alt="Custospark Academy">
+                    <div class="institution">Custospark Academy</div>
                 @else
                     <div class="brand-fallback">Custospark Academy</div>
                 @endif
-                <div class="institution">Custospark Academy</div>
                 <div class="institution-sub">An Institution of Custospark Company Ltd</div>
             </div>
 
