@@ -71,10 +71,11 @@ def q(value):
     return f'"{escaped}"'
 
 
-def build_content(env_name):
+def build_content(env_name, app_key=''):
     """Compose a complete, self-contained .env for the target environment.
     Every value is quoted (safe with '=', spaces, quotes), never merged from
-    .env.example so a quirky example line can never break the server file."""
+    .env.example so a quirky example line can never break the server file.
+    app_key is carried over from the live server file (never regenerated)."""
     env_path = 'C:/Dev/CustosparkAcademy/Backend/.env'
     with open(env_path, 'r', encoding='utf-8') as fh:
         env_text = fh.read()
@@ -89,7 +90,7 @@ def build_content(env_name):
     lines = [
         'APP_NAME="Custospark Academy"',
         f'APP_ENV={q(env_name)}',
-        'APP_KEY=',
+        f'APP_KEY={q(app_key)}',
         'APP_DEBUG="false"',
         f'APP_URL={q(APP_URL[env_name])}',
         f'FRONTEND_URL={q(FRONTEND_URL[env_name])}',
@@ -180,14 +181,36 @@ def main():
     if env_name not in APP_DIRS:
         raise SystemExit('Usage: python scripts/push_env.py [--render <path>] [staging|production]')
 
-    content = build_content(env_name)
+    creds = load_env('C:/Dev/CustosparkAcademy/Backend/.env')
+
+    # NEVER regenerate APP_KEY: carry the live server key forward so sessions,
+    # encrypted cookies and password-reset tokens survive .env re-pushes. Only
+    # a first-time (missing/empty) key needs `key:generate` afterwards.
+    app_key = ''
+    try:
+        probe = paramiko.SSHClient()
+        probe.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        probe.connect(
+            hostname=creds['SSH_DEPLOY_HOST'],
+            port=int(creds['SSH_DEPLOY_PORT']),
+            username=creds['SSH_DEPLOY_USER'],
+            password=creds['SSH_DEPLOY_PASSWORD'],
+            timeout=30,
+        )
+        _stdin, stdout, _stderr = probe.exec_command(
+            f"grep -E '^APP_KEY=' {APP_DIRS[env_name]}/.env 2>/dev/null | cut -d= -f2- | tr -d '\"' | tr -d \"'\"")
+        stdout.channel.recv_exit_status()
+        app_key = (stdout.read().decode('utf-8', 'replace').strip() or '')
+        probe.close()
+    except Exception as exc:  # noqa: BLE001 - first deploy has no key yet
+        print(f'note: could not read live APP_KEY ({exc}) - leaving empty')
+
+    content = build_content(env_name, app_key)
     if render_to:
         with open(render_to, 'w', encoding='utf-8', newline='\n') as fh:
             fh.write(content)
         print(f'OK  {env_name}: rendered to {render_to} ({len(content.encode("utf-8"))} bytes, creds masked)')
         return
-
-    creds = load_env('C:/Dev/CustosparkAcademy/Backend/.env')
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
