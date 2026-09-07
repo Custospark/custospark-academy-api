@@ -683,6 +683,8 @@ class CourseContentController extends Controller
             'is_self_paced' => $course->is_self_paced,
             'start_date' => $course->start_date?->toIso8601String(),
             'end_date' => $course->end_date?->toIso8601String(),
+            'enrollment_opens_at' => $course->enrollment_opens_at?->toIso8601String(),
+            'enrollment_closes_at' => $course->enrollment_closes_at?->toIso8601String(),
             'sections' => $course->sections->map(fn ($s) => [
                 'id' => $s->id,
                 'title' => $s->title,

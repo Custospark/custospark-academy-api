@@ -186,4 +186,42 @@ class EnrollmentFlowTest extends TestCase
         $this->assertEquals($enrollmentId, $applied['enrollment_id']);
         $this->assertStringEndsWith("/api/v1/payments/{$applied['id']}/receipt", $applied['receipt_url']);
     }
+
+    public function test_closed_enrollment_window_blocks_apply_but_not_enrolled_activity(): void
+    {
+        [$admin, $course] = $this->adminCourse();
+        $course->update(['enrollment_closes_at' => now()->subDay()]);
+
+        $latecomer = User::factory()->learner()->create();
+        $this->actingAsUser($latecomer)->postJson('/api/v1/enrollments', [
+            'course_id' => $course->id,
+        ])->assertStatus(422);
+
+        // A learner who enrolled before closing keeps full access.
+        $course->update(['enrollment_closes_at' => now()->addDay()]);
+        $learner = User::factory()->learner()->create();
+        $enrollmentId = $this->actingAsUser($learner)->postJson('/api/v1/enrollments', [
+            'course_id' => $course->id,
+        ])->assertCreated()->json('data.id');
+
+        $course->update(['enrollment_closes_at' => now()->subDay()]);
+
+        $this->actingAsUser($learner)
+            ->getJson("/api/v1/courses/{$course->id}/content")
+            ->assertOk();
+        $this->actingAsUser($learner)
+            ->postJson("/api/v1/enrollments/{$enrollmentId}/pay/application")
+            ->assertOk();
+    }
+
+    public function test_unopened_enrollment_window_blocks_apply(): void
+    {
+        [$admin, $course] = $this->adminCourse();
+        $course->update(['enrollment_opens_at' => now()->addDay()]);
+
+        $learner = User::factory()->learner()->create();
+        $this->actingAsUser($learner)->postJson('/api/v1/enrollments', [
+            'course_id' => $course->id,
+        ])->assertStatus(422);
+    }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Course;
 use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\User;
@@ -23,6 +24,19 @@ class EnrollmentService
 
     public function apply(int $courseId, User $user): Enrollment
     {
+        $course = Course::query()->findOrFail($courseId);
+        $now = now();
+        if ($course->enrollment_opens_at && $now->lt($course->enrollment_opens_at)) {
+            throw ValidationException::withMessages([
+                'course' => 'Enrollment opens on '.$course->enrollment_opens_at->format('j M Y').'.',
+            ]);
+        }
+        if ($course->enrollment_closes_at && $now->gt($course->enrollment_closes_at)) {
+            throw ValidationException::withMessages([
+                'course' => 'Enrollment for this course closed on '.$course->enrollment_closes_at->format('j M Y').'.',
+            ]);
+        }
+
         $enrollment = $this->stateMachine->apply($courseId, (int) $user->id);
 
         // Sponsored/waivered application fees skip the payment step entirely,

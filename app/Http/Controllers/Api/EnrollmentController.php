@@ -261,6 +261,8 @@ class EnrollmentController extends Controller
             'course_id' => $enrollment->course_id,
             'course_slug' => $enrollment->course?->slug,
             'course_title' => $enrollment->course?->title,
+            'enrollment_opens_at' => $enrollment->course?->enrollment_opens_at?->toIso8601String(),
+            'enrollment_closes_at' => $enrollment->course?->enrollment_closes_at?->toIso8601String(),
             'user_id' => $enrollment->user_id,
             'user_name' => $deep ? $enrollment->user?->name : null,
             'user_email' => $deep ? $enrollment->user?->email : null,

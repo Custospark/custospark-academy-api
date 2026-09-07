@@ -43,6 +43,8 @@ class Course extends Model
         'status',
         'start_date',
         'end_date',
+        'enrollment_opens_at',
+        'enrollment_closes_at',
         'is_self_paced',
         'delivery_mode',
         'level',
@@ -91,6 +93,8 @@ class Course extends Model
         return [
             'start_date' => 'datetime',
             'end_date' => 'datetime',
+            'enrollment_opens_at' => 'datetime',
+            'enrollment_closes_at' => 'datetime',
             'is_self_paced' => 'boolean',
             'tags' => 'array',
         ];
