@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\AttendanceController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CertificateController;
 use App\Http\Controllers\Api\CourseContentController;
@@ -66,6 +67,7 @@ Route::prefix('v1')->group(function () {
         Route::post('courses/{courseId}/attempt/{type}/{typeId}', [LearnerContentController::class, 'submitAttempt']);
         Route::post('courses/{courseId}/lessons/{lessonId}/progress', [LearnerContentController::class, 'markLesson']);
         Route::get('courses/{courseId}/progress', [LearnerContentController::class, 'progress']);
+        Route::get('courses/{courseId}/attendance/mine', [AttendanceController::class, 'mine']);
 
         Route::prefix('admin')->group(function () {
             Route::get('courses', [CourseController::class, 'manageIndex']);
@@ -78,6 +80,11 @@ Route::prefix('v1')->group(function () {
             Route::get('courses/{courseId}/learners/export', [EnrollmentController::class, 'exportLearners']);
             // Instructor closes a live cohort: per-learner via enrollments/{id}/complete, all at once here.
             Route::post('courses/{courseId}/complete-learners', [EnrollmentController::class, 'completeCourse']);
+
+            // Digital class register: per-learner marks, mark-all, roster.
+            Route::get('courses/{courseId}/attendance', [AttendanceController::class, 'roster']);
+            Route::post('courses/{courseId}/attendance', [AttendanceController::class, 'mark']);
+            Route::post('courses/{courseId}/attendance/mark-all', [AttendanceController::class, 'markAll']);
 
             Route::post('courses', [CourseController::class, 'store']);
             Route::put('courses/{id}', [CourseController::class, 'update']);
