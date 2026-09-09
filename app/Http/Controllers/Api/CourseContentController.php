@@ -417,6 +417,7 @@ class CourseContentController extends Controller
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'instructions' => ['nullable', 'string'],
+            'file' => ['nullable', 'file', 'max:20480'],
             'submission_type' => ['nullable', 'string', 'in:text,file,link'],
             'due_after_days' => ['nullable', 'integer', 'min:0'],
             'opens_at' => ['nullable', 'date'],
@@ -427,8 +428,13 @@ class CourseContentController extends Controller
             'is_published' => ['nullable', 'boolean'],
         ]);
 
+        $filePath = null;
+        if ($request->hasFile('file')) {
+            $filePath = $request->file('file')->store('assignments', 'public');
+        }
+
         return response()->json([
-            'data' => $this->serializeAssignment($this->content->createAssignment($courseId, $validated)),
+            'data' => $this->serializeAssignment($this->content->createAssignment($courseId, [...$validated, 'file_path' => $filePath])),
         ], 201);
     }
 
@@ -441,6 +447,7 @@ class CourseContentController extends Controller
         $validated = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'instructions' => ['sometimes', 'nullable', 'string'],
+            'file' => ['sometimes', 'file', 'max:20480'],
             'submission_type' => ['sometimes', 'string', 'in:text,file,link'],
             'due_after_days' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'opens_at' => ['sometimes', 'nullable', 'date'],
@@ -450,6 +457,10 @@ class CourseContentController extends Controller
             'sort_order' => ['sometimes', 'integer'],
             'is_published' => ['sometimes', 'boolean'],
         ]);
+
+        if ($request->hasFile('file')) {
+            $validated['file_path'] = $request->file('file')->store('assignments', 'public');
+        }
 
         return response()->json([
             'data' => $this->serializeAssignment($this->content->updateAssignment($assignment, $validated)),
@@ -836,6 +847,7 @@ class CourseContentController extends Controller
             'lesson_id' => $assignment->lesson_id,
             'title' => $assignment->title,
             'instructions' => $assignment->instructions,
+            'file_path' => $assignment->file_path,
             'submission_type' => $assignment->submission_type,
             'due_after_days' => $assignment->due_after_days,
             'opens_at' => $assignment->opens_at?->toIso8601String(),

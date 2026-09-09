@@ -24,6 +24,7 @@ class Assignment extends Model
         'lesson_id',
         'title',
         'instructions',
+        'file_path',
         'submission_type',
         'due_after_days',
         'opens_at',

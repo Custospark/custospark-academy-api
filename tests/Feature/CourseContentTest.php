@@ -258,4 +258,41 @@ class CourseContentTest extends TestCase
 
         $this->assertSame('Edited outcome', $updated['description']);
     }
+
+    public function test_assignment_accepts_a_file_and_replaces_it(): void
+    {
+        Storage::fake('public');
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+
+        $assignment = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/assignments", [
+                'title' => 'Build a landing page',
+                'instructions' => 'Follow the brief.',
+                'submission_type' => 'file',
+                'file' => UploadedFile::fake()->create('brief.pdf', 200, 'application/pdf'),
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertNotNull($assignment['file_path']);
+        Storage::disk('public')->assertExists($assignment['file_path']);
+
+        $replaced = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/assignments/{$assignment['id']}", [
+                '_method' => 'PUT',
+                'file' => UploadedFile::fake()->create('brief-v2.pdf', 200, 'application/pdf'),
+            ])
+            ->assertOk()
+            ->json('data');
+
+        $this->assertNotSame($assignment['file_path'], $replaced['file_path']);
+        Storage::disk('public')->assertExists($replaced['file_path']);
+        Storage::disk('public')->assertMissing($assignment['file_path']);
+
+        $this->actingAsUser($instructor)
+            ->deleteJson("/api/v1/admin/courses/{$course->id}/assignments/{$assignment['id']}")
+            ->assertOk();
+        Storage::disk('public')->assertMissing($replaced['file_path']);
+    }
 }

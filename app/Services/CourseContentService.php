@@ -335,6 +335,7 @@ class CourseContentService
             'lesson_id' => $data['lesson_id'] ?? null,
             'title' => $data['title'],
             'instructions' => $data['instructions'] ?? null,
+            'file_path' => $data['file_path'] ?? null,
             'submission_type' => $data['submission_type'] ?? \App\Models\Assignment::SUBMISSION_TEXT,
             'due_after_days' => $data['due_after_days'] ?? null,
             'opens_at' => $data['opens_at'] ?? null,
@@ -347,11 +348,18 @@ class CourseContentService
 
     public function updateAssignment(\App\Models\Assignment $assignment, array $data): \App\Models\Assignment
     {
-        return $this->content->updateAssignment($assignment, $data);
+        $old = $assignment->file_path;
+        $updated = $this->content->updateAssignment($assignment, $data);
+        if (array_key_exists('file_path', $data) && $data['file_path'] !== $old) {
+            $this->deletePublicFile($old);
+        }
+
+        return $updated;
     }
 
     public function deleteAssignment(\App\Models\Assignment $assignment): void
     {
+        $this->deletePublicFile($assignment->file_path);
         $this->content->deleteAssignment($assignment);
     }
 

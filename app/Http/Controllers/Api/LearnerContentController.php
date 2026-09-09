@@ -315,6 +315,7 @@ class LearnerContentController extends Controller
                 'id' => $a->id,
                 'title' => $a->title,
                 'instructions' => $a->instructions,
+                'file_path' => $a->file_path,
                 'submission_type' => $a->submission_type,
                 'max_score' => $a->max_score,
                 'opens_at' => $a->opens_at?->toIso8601String(),
