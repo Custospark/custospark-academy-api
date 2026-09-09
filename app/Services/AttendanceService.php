@@ -19,18 +19,26 @@ use Illuminate\Validation\ValidationException;
 class AttendanceService
 {
     /**
-     * Attendance is for admitted learners only: anyone at or past admission
-     * (admitted, learning, finished, certified). Applicants, rejected and
-     * cancelled enrollments never appear on the register.
+     * Attendance is for live enrollments: every status range except the dead
+     * ends (rejected, cancelled). Ranges, not points - statuses keep moving
+     * (applied -> paid -> admitted -> learning -> finished) and the register
+     * must keep working through all of it.
      */
-    public const ADMITTED_STATUSES = [
+    public const ELIGIBLE_STATUSES = [
+        \App\Models\Enrollment::STATUS_APPLIED,
+        \App\Models\Enrollment::STATUS_APPLICATION_FEE_PAID,
         \App\Models\Enrollment::STATUS_ADMITTED,
         \App\Models\Enrollment::STATUS_TUITION_PAID,
         \App\Models\Enrollment::STATUS_IN_PROGRESS,
         \App\Models\Enrollment::STATUS_COMPLETED,
         \App\Models\Enrollment::STATUS_CERTIFICATION,
         \App\Models\Enrollment::STATUS_CERTIFIED,
-    ];    /**
+    ];
+
+    /** @deprecated Use ELIGIBLE_STATUSES (statuses are ranges, not points). */
+    public const ADMITTED_STATUSES = self::ELIGIBLE_STATUSES;
+
+    /**
      * Mark attendance for specific learners on a date. Unknown or unenrolled
      * users are reported back, never created.
      *
@@ -55,8 +63,8 @@ class AttendanceService
                 $errors[] = "User {$userId}: no such account.";
                 continue;
             }
-            if (! Enrollment::query()->where('course_id', $course->id)->where('user_id', $userId)->whereIn('status', self::ADMITTED_STATUSES)->exists()) {
-                $errors[] = "{$user->email}: not admitted in this course (attendance is for admitted learners).";
+            if (! Enrollment::query()->where('course_id', $course->id)->where('user_id', $userId)->whereIn('status', self::ELIGIBLE_STATUSES)->exists()) {
+                $errors[] = "{$user->email}: no live enrollment in this course.";
                 continue;
             }
 
@@ -84,7 +92,7 @@ class AttendanceService
 
         $ids = Enrollment::query()
             ->where('course_id', $course->id)
-            ->whereIn('status', self::ADMITTED_STATUSES)
+            ->whereIn('status', self::ELIGIBLE_STATUSES)
             ->pluck('user_id')->unique()->all();
         foreach ($ids as $userId) {
             Attendance::query()->updateOrCreate(
@@ -114,7 +122,7 @@ class AttendanceService
         $enrollments = Enrollment::query()
             ->with('user')
             ->where('course_id', $course->id)
-            ->whereIn('status', self::ADMITTED_STATUSES)
+            ->whereIn('status', self::ELIGIBLE_STATUSES)
             ->orderBy('id')
             ->get();
 

@@ -75,10 +75,10 @@ class AttendanceController extends Controller
             $admitted = \App\Models\Enrollment::query()
                 ->where('course_id', $course->id)
                 ->where('user_id', $user->id)
-                ->whereIn('status', \App\Services\AttendanceService::ADMITTED_STATUSES)
+                ->whereIn('status', \App\Services\AttendanceService::ELIGIBLE_STATUSES)
                 ->exists();
             if (! $admitted) {
-                abort(403, 'Attendance records are for admitted learners.');
+                abort(403, 'Attendance records are for learners with a live enrollment.');
             }
         }
 

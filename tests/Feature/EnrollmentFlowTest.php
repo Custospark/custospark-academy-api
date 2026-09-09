@@ -227,8 +227,7 @@ class EnrollmentFlowTest extends TestCase
         ])->assertStatus(422);
     }
 
-    public function test_live_course_completion_belongs_to_the_instructor(): void
-    {
+    public function test_live_course_completion_belongs_to_the_instructor(): void {
         $instructor = User::factory()->instructor()->create();
         $course = Course::factory()->create([
             'created_by' => $instructor->id,
@@ -266,5 +265,26 @@ class EnrollmentFlowTest extends TestCase
         $this->assertContains($otherId, $bulk['completed']);
         $this->assertNotContains($enrollmentId, $bulk['completed']);
         $this->assertDatabaseHas('enrollments', ['id' => $otherId, 'status' => 'completed']);
+    }
+
+    public function test_certified_and_completed_learners_keep_material_access(): void
+    {
+        [$admin, $course] = $this->adminCourse();
+        foreach ([Enrollment::STATUS_COMPLETED, Enrollment::STATUS_CERTIFIED] as $status) {
+            $learner = User::factory()->learner()->create();
+            Enrollment::factory()->create([
+                'course_id' => $course->id,
+                'user_id' => $learner->id,
+                'status' => $status,
+            ]);
+
+            // Finished learners keep full read access to their course materials.
+            $this->actingAsUser($learner)
+                ->getJson("/api/v1/courses/{$course->id}/content")
+                ->assertOk();
+            $this->actingAsUser($learner)
+                ->getJson("/api/v1/courses/{$course->id}/attendance/mine")
+                ->assertOk();
+        }
     }
 }
