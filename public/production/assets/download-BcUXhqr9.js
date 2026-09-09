@@ -1,0 +1,1 @@
+import{n as e}from"./endpoints-C2zR5VYr.js";async function t(t,n){let r=await e.get(t,{responseType:`blob`}),i=window.URL.createObjectURL(r.data),a=document.createElement(`a`);a.href=i,a.download=n,document.body.appendChild(a),a.click(),a.remove(),window.URL.revokeObjectURL(i)}export{t};
