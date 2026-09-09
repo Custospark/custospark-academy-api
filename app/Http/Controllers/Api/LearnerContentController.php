@@ -238,6 +238,7 @@ class LearnerContentController extends Controller
                     'content' => $l->content,
                     'video_url' => $l->video_url,
                     'video_path' => $l->video_path,
+                    'book_path' => $l->book_path,
                     'duration_minutes' => $l->duration_minutes,
                     'sort_order' => $l->sort_order,
                     'is_free_preview' => $l->is_free_preview,

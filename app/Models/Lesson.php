@@ -22,6 +22,8 @@ class Lesson extends Model
 
     public const TYPE_EMBED = 'embed';
 
+    public const TYPE_BOOK = 'book';
+
     protected $fillable = [
         'course_id',
         'section_id',
@@ -30,6 +32,7 @@ class Lesson extends Model
         'content',
         'video_url',
         'video_path',
+        'book_path',
         'duration_minutes',
         'sort_order',
         'is_free_preview',

@@ -359,4 +359,27 @@ class CourseContentTest extends TestCase
             ->assertOk();
         Storage::disk('public')->assertMissing($replaced['video_path']);
     }
+
+    public function test_lesson_accepts_a_book_file(): void
+    {
+        Storage::fake('public');
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+        $section = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/sections", ['title' => 'Module 1'])
+            ->assertCreated()->json('data');
+
+        $lesson = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/lessons", [
+                'title' => 'Course book',
+                'content_type' => 'book',
+                'section_id' => $section['id'],
+                'book' => UploadedFile::fake()->create('book.pdf', 200, 'application/pdf'),
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertNotNull($lesson['book_path']);
+        Storage::disk('public')->assertExists($lesson['book_path']);
+    }
 }

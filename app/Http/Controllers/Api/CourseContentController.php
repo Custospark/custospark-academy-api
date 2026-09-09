@@ -130,9 +130,13 @@ class CourseContentController extends Controller
         if ($request->hasFile('video')) {
             $videoPath = $request->file('video')->store('lessons', 'public');
         }
+        $bookPath = null;
+        if ($request->hasFile('book')) {
+            $bookPath = $request->file('book')->store('books', 'public');
+        }
 
         return response()->json([
-            'data' => $this->serializeLesson($this->content->createLesson($courseId, [...$validated, 'video_path' => $videoPath])),
+            'data' => $this->serializeLesson($this->content->createLesson($courseId, [...$validated, 'video_path' => $videoPath, 'book_path' => $bookPath])),
         ], 201);
     }
 
@@ -146,6 +150,9 @@ class CourseContentController extends Controller
 
         if ($request->hasFile('video')) {
             $validated['video_path'] = $request->file('video')->store('lessons', 'public');
+        }
+        if ($request->hasFile('book')) {
+            $validated['book_path'] = $request->file('book')->store('books', 'public');
         }
 
         return response()->json([
@@ -610,10 +617,11 @@ class CourseContentController extends Controller
         $rules = [
             'title' => ['required', 'string', 'max:255'],
             'section_id' => ['nullable', 'integer', 'exists:course_sections,id'],
-            'content_type' => ['nullable', 'string', 'in:text,video,article,embed'],
+            'content_type' => ['nullable', 'string', 'in:text,video,article,embed,book'],
             'content' => ['nullable', 'string'],
             'video_url' => ['nullable', 'string'],
             'video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:102400'],
+            'book' => ['nullable', 'file', 'mimetypes:application/pdf,application/epub+zip', 'max:20480'],
             'duration_minutes' => ['nullable', 'integer', 'min:0'],
             'sort_order' => ['nullable', 'integer'],
             'is_free_preview' => ['nullable', 'boolean'],
@@ -749,6 +757,7 @@ class CourseContentController extends Controller
             'content' => $lesson->content,
             'video_url' => $lesson->video_url,
             'video_path' => $lesson->video_path,
+            'book_path' => $lesson->book_path,
             'duration_minutes' => $lesson->duration_minutes,
             'sort_order' => $lesson->sort_order,
             'is_free_preview' => $lesson->is_free_preview,
