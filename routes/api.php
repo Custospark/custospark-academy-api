@@ -86,6 +86,9 @@ Route::prefix('v1')->group(function () {
             Route::post('courses/{courseId}/attendance', [AttendanceController::class, 'mark']);
             Route::post('courses/{courseId}/attendance/mark-all', [AttendanceController::class, 'markAll']);
 
+            // Instructor grading inbox.
+            Route::get('courses/{courseId}/submissions', [CourseContentController::class, 'submissions']);
+
             Route::post('courses', [CourseController::class, 'store']);
             Route::put('courses/{id}', [CourseController::class, 'update']);
             Route::delete('courses/{id}', [CourseController::class, 'destroy']);

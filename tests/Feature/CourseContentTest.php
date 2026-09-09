@@ -360,8 +360,7 @@ class CourseContentTest extends TestCase
         Storage::disk('public')->assertMissing($replaced['video_path']);
     }
 
-    public function test_lesson_accepts_a_book_file(): void
-    {
+    public function test_lesson_accepts_a_book_file(): void {
         Storage::fake('public');
         $instructor = User::factory()->instructor()->create();
         $course = $this->courseFor($instructor);
@@ -381,5 +380,52 @@ class CourseContentTest extends TestCase
 
         $this->assertNotNull($lesson['book_path']);
         Storage::disk('public')->assertExists($lesson['book_path']);
+    }
+
+    public function test_instructor_inbox_lists_grades_and_learner_sees_result(): void
+    {
+        Storage::fake('public');
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+        $learner = User::factory()->learner()->create();
+        app(\App\Services\EnrollmentService::class)->apply($course->id, $learner);
+
+        $assignment = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/assignments", [
+                'title' => 'Build a landing page',
+                'submission_type' => 'file',
+            ])
+            ->assertCreated()->json('data');
+
+        $this->actingAsUser($learner)
+            ->post("/api/v1/courses/{$course->id}/submit/assignment/{$assignment['id']}", [
+                'file' => UploadedFile::fake()->create('work.pdf', 200, 'application/pdf'),
+            ])
+            ->assertCreated();
+
+        // Instructor inbox sees the submission with learner + file.
+        $inbox = $this->actingAsUser($instructor)
+            ->getJson("/api/v1/admin/courses/{$course->id}/submissions")
+            ->assertOk()->json('data');
+        $this->assertCount(1, $inbox);
+        $this->assertSame('submitted', $inbox[0]['status']);
+        $this->assertSame($learner->email, $inbox[0]['learner_email']);
+        $this->assertNotNull($inbox[0]['file_path']);
+
+        // Grade it; learner sees score + feedback via course content.
+        $this->actingAsUser($instructor)
+            ->putJson("/api/v1/admin/courses/{$course->id}/submissions/{$inbox[0]['id']}/grade", [
+                'score' => 85,
+                'feedback' => 'Great structure.',
+            ])
+            ->assertOk();
+
+        $content = $this->actingAsUser($learner)
+            ->getJson("/api/v1/courses/{$course->id}/content")
+            ->assertOk()->json('data');
+        $status = collect($content['assignments'])->firstWhere('id', $assignment['id'])['my_status'];
+        $this->assertSame('graded', $status['status']);
+        $this->assertSame(85, (int) $status['score']);
+        $this->assertSame('Great structure.', $status['feedback']);
     }
 }

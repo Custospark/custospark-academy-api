@@ -35,12 +35,12 @@ class AssessmentResultsService
         $book = new Spreadsheet();
         $sheet = $book->getActiveSheet();
         $sheet->setTitle('Results');
-        $sheet->fromArray([['learner_email', 'score', 'feedback']], null, 'A1');
+        $sheet->fromArray([['learner_email', 'score', 'grade', 'feedback']], null, 'A1');
         $sheet->fromArray([
-            ['learner@example.com', 85, 'Well done - clear working.'],
+            ['learner@example.com', 85, 'A', 'Well done - clear working.'],
         ], null, 'A2');
-        $sheet->getStyle('A1:C1')->getFont()->setBold(true);
-        foreach (range('A', 'C') as $col) {
+        $sheet->getStyle('A1:D1')->getFont()->setBold(true);
+        foreach (range('A', 'D') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -83,7 +83,7 @@ class AssessmentResultsService
         foreach (array_slice($data, 1) as $index => $row) {
             $sheetRow = $index + 2;
             $email = strtolower(trim((string) ($row[0] ?? '')));
-            if ($email === '' && trim((string) ($row[1] ?? '')) === '' && trim((string) ($row[2] ?? '')) === '') {
+            if ($email === '' && trim((string) ($row[1] ?? '')) === '' && trim((string) ($row[2] ?? '')) === '' && trim((string) ($row[3] ?? '')) === '') {
                 continue;
             }
             if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -99,26 +99,44 @@ class AssessmentResultsService
                 $errors[] = "Row {$sheetRow}: {$email} is not enrolled in this course.";
                 continue;
             }
-            if (! is_numeric($row[1] ?? null) || (float) $row[1] < 0 || (float) $row[1] > $max) {
+            $scoreRaw = trim((string) ($row[1] ?? ''));
+            $grade = trim((string) ($row[2] ?? ''));
+            $score = $scoreRaw === '' ? null : (float) $scoreRaw;
+            if (($score === null || ! is_numeric($scoreRaw)) && $grade === '') {
+                $errors[] = "Row {$sheetRow}: give a score, a grade (e.g. A, 85%), or both.";
+                continue;
+            }
+            if ($score !== null && ($score < 0 || $score > $max)) {
                 $errors[] = "Row {$sheetRow}: score must be between 0 and {$max}.";
                 continue;
             }
 
-            $this->submissions->create([
-                'user_id' => $user->id,
-                'course_id' => $course->id,
-                'submissionable_type' => $model,
-                'submissionable_id' => $parent->id,
-                'content' => null,
-                'file_path' => null,
+            // Link to the learner's existing ungraded submission when there is
+            // one (no duplicate rows); otherwise record a fresh graded entry.
+            $existing = $this->submissions->latestFor($user->id, $course->id, $model, $parent->id);
+            $graded = [
                 'status' => Submission::STATUS_GRADED,
-                'score' => (float) $row[1],
+                'score' => $score,
+                'grade' => $grade !== '' ? substr($grade, 0, 20) : null,
                 'max_score' => $max,
-                'feedback' => trim((string) ($row[2] ?? '')) ?: null,
+                'feedback' => trim((string) ($row[3] ?? '')) ?: null,
                 'graded_by' => $graderId,
                 'graded_at' => now(),
-                'submitted_at' => now(),
-            ]);
+            ];
+            if ($existing !== null && $existing->status !== Submission::STATUS_GRADED) {
+                $this->submissions->update($existing, $graded);
+            } else {
+                $this->submissions->create([
+                    'user_id' => $user->id,
+                    'course_id' => $course->id,
+                    'submissionable_type' => $model,
+                    'submissionable_id' => $parent->id,
+                    'content' => null,
+                    'file_path' => null,
+                    'submitted_at' => now(),
+                    ...$graded,
+                ]);
+            }
             $imported++;
         }
 

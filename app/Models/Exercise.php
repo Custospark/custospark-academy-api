@@ -27,6 +27,7 @@ class Exercise extends Model
         'type',
         'max_score',
         'passing_score',
+        'max_attempts',
         'time_limit_minutes',
         'opens_at',
         'closes_at',
@@ -39,6 +40,7 @@ class Exercise extends Model
         return [
             'max_score' => 'integer',
             'passing_score' => 'integer',
+            'max_attempts' => 'integer',
             'time_limit_minutes' => 'integer',
             'opens_at' => 'datetime',
             'closes_at' => 'datetime',

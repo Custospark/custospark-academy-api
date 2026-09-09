@@ -11,11 +11,13 @@ use App\Models\Course;
 use App\Models\Exam;
 use App\Models\Exercise;
 use App\Models\Lesson;
+use App\Models\LessonProgress;
 use App\Models\Quiz;
 use App\Models\Submission;
 use App\Repositories\Contracts\EnrollmentRepositoryInterface;
 use App\Services\CourseContentService;
 use App\Services\EnrollmentService;
+use App\Services\LearnerWorkService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,6 +31,7 @@ class LearnerContentController extends Controller
         protected CourseContentService $content,
         protected EnrollmentRepositoryInterface $enrollments,
         protected EnrollmentService $enrollmentService,
+        protected LearnerWorkService $work,
     ) {}
 
     /** Full course content for an enrolled learner (correct answers hidden). */
@@ -60,7 +63,7 @@ class LearnerContentController extends Controller
             $filePath = $request->file('file')->store('submissions', 'public');
         }
 
-        $submission = $this->content->submitWork(
+        $submission = $this->work->submitWork(
             $request->user(),
             $courseId,
             $type,
@@ -88,7 +91,7 @@ class LearnerContentController extends Controller
             'answers' => ['required', 'array'],
         ]);
 
-        $attempt = $this->content->submitAssessmentAttempt(
+        $attempt = $this->work->submitAssessmentAttempt(
             $request->user(),
             $courseId,
             $type,
@@ -120,7 +123,7 @@ class LearnerContentController extends Controller
 
         $lesson = Lesson::query()->where('course_id', $courseId)->findOrFail($lessonId);
 
-        $progress = $this->content->markLessonProgress(
+        $progress = $this->work->markLessonProgress(
             $request->user(),
             $courseId,
             $lesson,
@@ -143,7 +146,7 @@ class LearnerContentController extends Controller
         $courseId = $this->courseKey($courseId);
         $this->requireEnrolled($courseId, $request->user());
 
-        $progress = $this->content->courseProgress($request->user(), $courseId);
+        $progress = $this->work->courseProgress($request->user(), $courseId);
 
         return response()->json(['data' => $progress]);
     }
@@ -185,7 +188,13 @@ class LearnerContentController extends Controller
             ->orderByDesc('submitted_at')
             ->get()
             ->mapWithKeys(fn ($a) => [$a->assessmentable_type.'#'.$a->assessmentable_id => $a]);
-        $attemptStatus = function (string $type, int $id) use ($attempts): ?array {
+        // Per-lesson progress so the player shows Started/Completed states.
+        $lessonProgress = LessonProgress::query()
+            ->where('user_id', $userId)
+            ->where('course_id', $course->id)
+            ->get()
+            ->mapWithKeys(fn ($p) => [$p->lesson_id => $p->status]);
+        $attemptStatus = function (string $type, int $id) use ($attempts, $userId, $course): ?array {
             $a = $attempts[$type.'#'.$id] ?? null;
             if ($a === null) {
                 return null;
@@ -197,6 +206,12 @@ class LearnerContentController extends Controller
                 'max_score' => $a->max_score,
                 'is_passed' => (bool) $a->is_passed,
                 'submitted_at' => $a->submitted_at?->toIso8601String(),
+                'attempts_used' => AssessmentAttempt::query()
+                    ->where('user_id', $userId)
+                    ->where('course_id', $course->id)
+                    ->where('assessmentable_type', $type)
+                    ->where('assessmentable_id', $id)
+                    ->count(),
             ];
         };
         $submissionStatus = function (string $type, int $id) use ($subs): ?array {
@@ -209,6 +224,7 @@ class LearnerContentController extends Controller
                 'submitted' => true,
                 'status' => $s->status,
                 'score' => $s->score,
+                'grade' => $s->grade,
                 'feedback' => $s->feedback,
                 'submitted_at' => $s->submitted_at?->toIso8601String(),
                 'graded_at' => $s->graded_at?->toIso8601String(),
@@ -239,6 +255,7 @@ class LearnerContentController extends Controller
                     'video_url' => $l->video_url,
                     'video_path' => $l->video_path,
                     'book_path' => $l->book_path,
+                    'progress_status' => $lessonProgress[$l->id] ?? 'not_started',
                     'duration_minutes' => $l->duration_minutes,
                     'sort_order' => $l->sort_order,
                     'is_free_preview' => $l->is_free_preview,
@@ -261,6 +278,7 @@ class LearnerContentController extends Controller
                 'title' => $q->title,
                 'description' => $q->description,
                 'passing_score' => $q->passing_score,
+                'max_attempts' => $q->max_attempts,
                 'time_limit_minutes' => $q->time_limit_minutes,
                 'opens_at' => $q->opens_at?->toIso8601String(),
                 'closes_at' => $q->closes_at?->toIso8601String(),
@@ -281,6 +299,7 @@ class LearnerContentController extends Controller
                 'type' => $e->type,
                 'max_score' => $e->max_score,
                 'passing_score' => $e->passing_score,
+                'max_attempts' => $e->max_attempts,
                 'opens_at' => $e->opens_at?->toIso8601String(),
                 'closes_at' => $e->closes_at?->toIso8601String(),
                 'questions' => $e->questions->map(fn ($question) => [
@@ -335,6 +354,7 @@ class LearnerContentController extends Controller
             'content' => $submission->content,
             'file_path' => $submission->file_path,
             'score' => $submission->score,
+            'grade' => $submission->grade,
             'max_score' => $submission->max_score,
             'feedback' => $submission->feedback,
             'submitted_at' => $submission->submitted_at?->toIso8601String(),

@@ -16,6 +16,8 @@ interface SubmissionRepositoryInterface
 
     public function find(int $id): ?Submission;
 
+    public function latestFor(int $userId, int $courseId, string $type, int $id): ?Submission;
+
     public function create(array $data): Submission;
 
     public function update(Submission $submission, array $data): Submission;
@@ -25,6 +27,8 @@ interface SubmissionRepositoryInterface
     public function updateAttempt(AssessmentAttempt $attempt, array $data): AssessmentAttempt;
 
     public function lastAttempt(int $userId, string $assessmentableType, int $assessmentableId): ?AssessmentAttempt;
+
+    public function attemptsFor(int $userId, int $courseId, string $assessmentableType, int $assessmentableId): int;
 
     public function findLessonProgress(int $userId, int $lessonId): ?LessonProgress;
 

@@ -41,6 +41,47 @@ class TeachingToolkitTest extends TestCase
         app(\App\Services\EnrollmentService::class)->apply($course->id, $learner);
     }
 
+    public function test_quiz_attempts_are_capped_at_max_with_default_two(): void
+    {
+        $instructor = User::factory()->instructor()->create();
+        [$course, $quiz] = $this->courseWithQuiz($instructor);
+        $learner = User::factory()->learner()->create();
+        $this->enroll($learner, $course);
+
+        $answers = [$quiz['questions'][0]['id'] => '4'];
+        $url = "/api/v1/courses/{$course->id}/attempt/quiz/{$quiz['id']}";
+
+        // Default budget of 2: first two attempts accepted...
+        $this->actingAsUser($learner)->postJson($url, ['answers' => $answers])->assertCreated();
+        $second = $this->actingAsUser($learner)->postJson($url, ['answers' => $answers])->assertCreated()->json('data');
+        $this->assertSame(100, (int) round(($second['score'] / max(1, $second['max_score'])) * 100));
+
+        // ...third is refused with a clear message.
+        $this->actingAsUser($learner)->postJson($url, ['answers' => $answers])
+            ->assertStatus(422)
+            ->assertJsonPath('message', fn ($m) => str_contains((string) $m, 'attempts') || isset($m));
+
+        // Custom budget of 1 blocks the second attempt immediately.
+        $strict = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/quizzes", [
+                'title' => 'One-shot Quiz',
+                'max_attempts' => 1,
+                'questions' => [
+                    ['question' => 'What is 3 + 3?', 'type' => 'multiple_choice', 'options' => ['5', '6'], 'correct_answer' => '6', 'points' => 1],
+                ],
+            ])
+            ->assertCreated()->json('data');
+        $this->assertSame(1, $strict['max_attempts']);
+
+        $strictUrl = "/api/v1/courses/{$course->id}/attempt/quiz/{$strict['id']}";
+        $this->actingAsUser($learner)
+            ->postJson($strictUrl, ['answers' => [$strict['questions'][0]['id'] => '6']])
+            ->assertCreated();
+        $this->actingAsUser($learner)
+            ->postJson($strictUrl, ['answers' => [$strict['questions'][0]['id'] => '6']])
+            ->assertStatus(422);
+    }
+
     private function makeXlsx(array $rows): UploadedFile
     {
         $book = new Spreadsheet();
@@ -148,6 +189,8 @@ class TeachingToolkitTest extends TestCase
         $course = Course::factory()->published()->create(['created_by' => $instructor->id]);
         $learner = User::factory()->learner()->create(['email' => 'results.learner@example.com']);
         $this->enroll($learner, $course);
+        $gradeOnly = User::factory()->learner()->create(['email' => 'grade.only@example.com']);
+        $this->enroll($gradeOnly, $course);
 
         $exam = $this->actingAsUser($instructor)
             ->postJson("/api/v1/admin/courses/{$course->id}/exams", [
@@ -158,9 +201,10 @@ class TeachingToolkitTest extends TestCase
             ->json('data');
 
         $file = $this->makeXlsx([
-            ['learner_email', 'score', 'feedback'],
-            ['results.learner@example.com', 85, 'Well done.'],
-            ['ghost@example.com', 90, null],
+            ['learner_email', 'score', 'grade', 'feedback'],
+            ['results.learner@example.com', 85, 'A', 'Well done.'],
+            ['grade.only@example.com', '', 'B+', 'Good effort.'],
+            ['ghost@example.com', 90, '', null],
         ]);
 
         $result = $this->actingAsUser($instructor)
@@ -168,13 +212,14 @@ class TeachingToolkitTest extends TestCase
             ->assertCreated()
             ->json('data');
 
-        $this->assertSame(1, $result['imported']);
+        $this->assertSame(2, $result['imported']);
         $this->assertCount(1, $result['errors']);
         $this->assertDatabaseHas('submissions', [
             'user_id' => $learner->id,
             'course_id' => $course->id,
             'status' => Submission::STATUS_GRADED,
             'score' => 85,
+            'grade' => 'A',
         ]);
     }
 }

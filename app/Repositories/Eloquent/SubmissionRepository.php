@@ -28,6 +28,19 @@ class SubmissionRepository implements SubmissionRepositoryInterface
         return Submission::query()->with(['user', 'submissionable', 'grader'])->find($id);
     }
 
+    /** Latest submission by a learner for one assessment (for grade linking). */
+    public function latestFor(int $userId, int $courseId, string $type, int $id): ?Submission
+    {
+        return Submission::query()
+            ->where('user_id', $userId)
+            ->where('course_id', $courseId)
+            ->where('submissionable_type', $type)
+            ->where('submissionable_id', $id)
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
     public function create(array $data): Submission
     {
         return Submission::query()->create($data);
@@ -60,6 +73,17 @@ class SubmissionRepository implements SubmissionRepositoryInterface
             ->where('assessmentable_id', $assessmentableId)
             ->latest('created_at')
             ->first();
+    }
+
+    /** Attempts used by a learner on one assessment (course-scoped). */
+    public function attemptsFor(int $userId, int $courseId, string $assessmentableType, int $assessmentableId): int
+    {
+        return AssessmentAttempt::query()
+            ->where('user_id', $userId)
+            ->where('course_id', $courseId)
+            ->where('assessmentable_type', $assessmentableType)
+            ->where('assessmentable_id', $assessmentableId)
+            ->count();
     }
 
     public function findLessonProgress(int $userId, int $lessonId): ?LessonProgress

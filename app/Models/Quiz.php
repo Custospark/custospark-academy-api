@@ -20,6 +20,7 @@ class Quiz extends Model
         'title',
         'description',
         'passing_score',
+        'max_attempts',
         'time_limit_minutes',
         'opens_at',
         'closes_at',
@@ -31,6 +32,7 @@ class Quiz extends Model
     {
         return [
             'passing_score' => 'integer',
+            'max_attempts' => 'integer',
             'time_limit_minutes' => 'integer',
             'opens_at' => 'datetime',
             'closes_at' => 'datetime',

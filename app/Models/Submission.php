@@ -30,6 +30,7 @@ class Submission extends Model
         'file_path',
         'status',
         'score',
+        'grade',
         'max_score',
         'feedback',
         'submitted_at',

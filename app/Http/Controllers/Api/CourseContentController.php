@@ -18,6 +18,7 @@ use App\Services\CourseContentService;
 use App\Services\EnrollmentService;
 use App\Services\QuestionImportService;
 use App\Services\AssessmentResultsService;
+use App\Services\LearnerWorkService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,7 @@ class CourseContentController extends Controller
         protected EnrollmentService $enrollments,
         protected QuestionImportService $questions,
         protected AssessmentResultsService $results,
+        protected LearnerWorkService $work,
     ) {}
 
     /* --------------------------- Full structure -------------------------- */
@@ -49,11 +51,12 @@ class CourseContentController extends Controller
         $this->authorizeCourse($course, $request->user());
 
         $validated = $request->validate([
-            'score' => ['required', 'integer', 'min:0'],
+            'score' => ['nullable', 'integer', 'min:0', 'required_without:grade'],
+            'grade' => ['nullable', 'string', 'max:20', 'required_without:score'],
             'feedback' => ['nullable', 'string'],
         ]);
 
-        $submission = $this->content->gradeSubmission($submissionId, (int) $request->user()->id, $validated);
+        $submission = $this->work->gradeSubmission($submissionId, (int) $request->user()->id, $validated);
 
         // Grading the last outstanding item may complete the learner's enrollment.
         $this->enrollments->refreshCompletionAfterProgress($submission->user, $courseId);
@@ -577,6 +580,38 @@ class CourseContentController extends Controller
         return response()->json(['data' => $result], 201);
     }
 
+    /* ----------------------------- Submissions ---------------------------- */
+
+    /** Instructor inbox: every learner submission on the course, filterable. */
+    public function submissions(Request $request, string|int $courseId): JsonResponse
+    {
+        $courseId = $this->courseKey($courseId);
+        $course = Course::query()->findOrFail($courseId);
+        $this->authorizeCourse($course, $request->user());
+
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', 'in:submitted,graded'],
+            'type' => ['nullable', 'string', 'in:assignment,exercise,exam'],
+        ]);
+
+        $items = $this->content->submissionsForCourse($courseId, $validated['status'] ?? null);
+
+        if (! empty($validated['type'])) {
+            $typeMap = [
+                'assignment' => \App\Models\Assignment::class,
+                'exercise' => \App\Models\Exercise::class,
+                'exam' => \App\Models\Exam::class,
+            ];
+            $wanted = $typeMap[$validated['type']];
+            $items = array_values(array_filter(
+                $items,
+                fn ($s) => $s['submissionable_type'] === $wanted
+            ));
+        }
+
+        return response()->json(['data' => $items]);
+    }
+
     /* ---------------------------- Authorization --------------------------- */
 
     /**
@@ -641,6 +676,7 @@ class CourseContentController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'passing_score' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'max_attempts' => ['nullable', 'integer', 'min:1', 'max:10'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:0'],
             'opens_at' => ['nullable', 'date'],
             'closes_at' => ['nullable', 'date'],
@@ -671,6 +707,7 @@ class CourseContentController extends Controller
             'type' => ['nullable', 'string', 'in:quiz,practical'],
             'max_score' => ['nullable', 'integer', 'min:0'],
             'passing_score' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'max_attempts' => ['nullable', 'integer', 'min:1', 'max:10'],
             'time_limit_minutes' => ['nullable', 'integer', 'min:0'],
             'lesson_id' => ['nullable', 'integer', 'exists:lessons,id'],
             'sort_order' => ['nullable', 'integer'],
@@ -799,6 +836,7 @@ class CourseContentController extends Controller
             'title' => $quiz->title,
             'description' => $quiz->description,
             'passing_score' => $quiz->passing_score,
+            'max_attempts' => $quiz->max_attempts,
             'time_limit_minutes' => $quiz->time_limit_minutes,
             'opens_at' => $quiz->opens_at?->toIso8601String(),
             'closes_at' => $quiz->closes_at?->toIso8601String(),
@@ -819,6 +857,7 @@ class CourseContentController extends Controller
             'type' => $exercise->type,
             'max_score' => $exercise->max_score,
             'passing_score' => $exercise->passing_score,
+            'max_attempts' => $exercise->max_attempts,
             'time_limit_minutes' => $exercise->time_limit_minutes,
             'opens_at' => $exercise->opens_at?->toIso8601String(),
             'closes_at' => $exercise->closes_at?->toIso8601String(),
