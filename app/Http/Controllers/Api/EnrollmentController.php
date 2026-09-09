@@ -94,6 +94,20 @@ class EnrollmentController extends Controller
     }
 
     /**
+     * Instructor/admin marks a whole course complete at once: every learner
+     * currently learning is completed. Live cohorts are closed this way.
+     */
+    public function completeCourse(Request $request, string|int $courseId): JsonResponse
+    {
+        $course = Course::resolveByKeyOrFail($courseId);
+        $this->authorizeCourseAudience($course, $request->user());
+
+        $completed = $this->enrollments->completeCourseLearners((int) $course->id);
+
+        return response()->json(['data' => ['completed' => $completed, 'count' => count($completed)]]);
+    }
+
+    /**
      * Mass email to a course's learners, optionally filtered by enrollment
      * status (announcements, meeting links, deadline reminders). Sent
      * synchronously in chunks so the sender gets an exact sent count.

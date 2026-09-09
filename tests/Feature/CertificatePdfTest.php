@@ -24,7 +24,7 @@ class CertificatePdfTest extends TestCase
         config(['app.frontend_url' => 'https://academy.custospark.com']);
 
         $admin = User::factory()->admin()->create();
-        $course = Course::factory()->published()->create(['created_by' => $admin->id]);
+        $course = Course::factory()->published()->create(['created_by' => $admin->id, 'delivery_mode' => Course::DELIVERY_SELF_PACED, 'is_self_paced' => true]);
         CourseFee::factory()->application()->create(['course_id' => $course->id, 'amount' => 50000]);
         CourseFee::factory()->tuition()->create(['course_id' => $course->id, 'amount' => 800000]);
         CourseFee::factory()->certificate()->create(['course_id' => $course->id, 'amount' => 50000]);

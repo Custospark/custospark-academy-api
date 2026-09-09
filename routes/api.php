@@ -76,6 +76,8 @@ Route::prefix('v1')->group(function () {
             // Course audience: mass email + learner roster export.
             Route::post('courses/{courseId}/announce', [EnrollmentController::class, 'announce']);
             Route::get('courses/{courseId}/learners/export', [EnrollmentController::class, 'exportLearners']);
+            // Instructor closes a live cohort: per-learner via enrollments/{id}/complete, all at once here.
+            Route::post('courses/{courseId}/complete-learners', [EnrollmentController::class, 'completeCourse']);
 
             Route::post('courses', [CourseController::class, 'store']);
             Route::put('courses/{id}', [CourseController::class, 'update']);

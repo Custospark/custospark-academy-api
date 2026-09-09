@@ -25,6 +25,8 @@ class VerifyCertificateTest extends TestCase
         $course = Course::factory()->published()->create([
             'created_by' => $admin->id,
             'title' => 'Data Science Fundamentals',
+            'delivery_mode' => Course::DELIVERY_SELF_PACED,
+            'is_self_paced' => true,
         ]);
         CourseFee::factory()->application()->create(['course_id' => $course->id, 'amount' => 50000]);
         CourseFee::factory()->tuition()->create(['course_id' => $course->id, 'amount' => 800000]);

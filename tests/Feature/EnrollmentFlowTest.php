@@ -34,6 +34,7 @@ class EnrollmentFlowTest extends TestCase
     public function test_learner_can_apply_and_pay_all_fees_to_certification(): void
     {
         [, $course] = $this->adminCourse();
+        $course->update(['delivery_mode' => Course::DELIVERY_SELF_PACED, 'is_self_paced' => true]);
         $user = $this->learner();
 
         $apply = $this->actingAsUser($user)->postJson('/api/v1/enrollments', [
@@ -131,6 +132,7 @@ class EnrollmentFlowTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
         $course = Course::factory()->published()->create(['created_by' => $admin->id]);
+        $course->update(['delivery_mode' => Course::DELIVERY_SELF_PACED, 'is_self_paced' => true]);
         // No fees configured (or all zero) -> the whole course is sponsored.
         CourseFee::factory()->application()->create(['course_id' => $course->id, 'amount' => 0]);
         CourseFee::factory()->tuition()->create(['course_id' => $course->id, 'amount' => 0]);
@@ -223,5 +225,46 @@ class EnrollmentFlowTest extends TestCase
         $this->actingAsUser($learner)->postJson('/api/v1/enrollments', [
             'course_id' => $course->id,
         ])->assertStatus(422);
+    }
+
+    public function test_live_course_completion_belongs_to_the_instructor(): void
+    {
+        $instructor = User::factory()->instructor()->create();
+        $course = Course::factory()->create([
+            'created_by' => $instructor->id,
+            'status' => Course::STATUS_PUBLISHED,
+            'delivery_mode' => Course::DELIVERY_LIVE,
+            'is_self_paced' => false,
+        ]);
+        CourseFee::factory()->create(['course_id' => $course->id, 'fee_type' => 'certificate', 'amount' => 150000]);
+
+        $learner = User::factory()->learner()->create();
+        $enrollmentId = $this->actingAsUser($learner)->postJson('/api/v1/enrollments', [
+            'course_id' => $course->id,
+        ])->assertCreated()->json('data.id');
+
+        // Learner can never self-complete a live course.
+        $this->actingAsUser($learner)
+            ->postJson("/api/v1/enrollments/{$enrollmentId}/complete")
+            ->assertStatus(422);
+
+        // Instructor completes one learner.
+        $this->actingAsUser($instructor)
+            ->postJson("/api/v1/enrollments/{$enrollmentId}/complete")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'completed');
+
+        // Bulk close completes the rest at once.
+        $other = User::factory()->learner()->create();
+        $otherId = $this->actingAsUser($other)->postJson('/api/v1/enrollments', [
+            'course_id' => $course->id,
+        ])->assertCreated()->json('data.id');
+
+        $bulk = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->slug}/complete-learners")
+            ->assertOk()->json('data');
+        $this->assertContains($otherId, $bulk['completed']);
+        $this->assertNotContains($enrollmentId, $bulk['completed']);
+        $this->assertDatabaseHas('enrollments', ['id' => $otherId, 'status' => 'completed']);
     }
 }

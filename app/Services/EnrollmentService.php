@@ -61,7 +61,14 @@ class EnrollmentService
             $instructorId = (int) $viewer->id;
         }
 
-        $courseId = isset($filters['course_id']) && $filters['course_id'] !== '' ? (int) $filters['course_id'] : null;
+        $rawCourse = $filters['course_id'] ?? null;
+        $courseId = null;
+        if ($rawCourse !== null && $rawCourse !== '') {
+            // Accept slugs (display URLs) as well as numeric ids.
+            $courseId = ctype_digit((string) $rawCourse)
+                ? (int) $rawCourse
+                : Course::query()->where('slug', (string) $rawCourse)->value('id');
+        }
         $status = isset($filters['status']) ? (string) $filters['status'] : null;
         $search = isset($filters['q']) ? (string) $filters['q'] : null;
 
@@ -123,17 +130,18 @@ class EnrollmentService
 
         // Learners complete self-paced/hybrid courses by satisfying every
         // required item (a course with no required items is trivially complete).
-        // Live courses are closed by the instructor, unless there is nothing
-        // required to complete (a learner cannot "finish" an empty course).
+        // Live (instructor-led) courses are closed ONLY by the instructor, even
+        // when the manifest is satisfied - the learner just waits for grading.
         if ($isOwner && ! $canForce) {
             $course = $enrollment->course;
-            $manifest = $this->completion->evaluate($enrollment->user ?? $user, $course);
 
-            if ($course->isLive() && ! $manifest['is_complete']) {
+            if ($course->isLive()) {
                 throw ValidationException::withMessages([
-                    'completion' => 'Live courses are completed by your instructor after the final assessment is graded.',
+                    'completion' => 'Your instructor will mark this live course complete after grading.',
                 ]);
             }
+
+            $manifest = $this->completion->evaluate($enrollment->user ?? $user, $course);
 
             if (! $manifest['is_complete']) {
                 throw ValidationException::withMessages([
@@ -143,6 +151,33 @@ class EnrollmentService
         }
 
         return $this->completeEnrollment($enrollment);
+    }
+
+    /**
+     * Instructor/admin closes a whole course at once: every learner currently
+     * learning (tuition paid or in progress) is marked completed. Returns the
+     * completed enrollment ids.
+     *
+     * @return list<int>
+     */
+    public function completeCourseLearners(int $courseId): array
+    {
+        $completed = [];
+        $enrollments = $this->enrollments->forCourse($courseId);
+
+        foreach ($enrollments as $enrollment) {
+            if (! in_array($enrollment->status, [Enrollment::STATUS_TUITION_PAID, Enrollment::STATUS_IN_PROGRESS], true)) {
+                continue;
+            }
+            try {
+                $this->completeEnrollment($enrollment->fresh() ?? $enrollment);
+                $completed[] = (int) $enrollment->id;
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return $completed;
     }
 
     /**
