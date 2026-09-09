@@ -69,6 +69,12 @@ class PaymentService
     {
         // No fee configured or zero amount: advance state without payment.
         if ($this->feeIsWaived((int) $enrollment->course_id, $feeType)) {
+            // Already past that money stage (e.g. auto-advanced on apply):
+            // nothing to do, succeed quietly instead of throwing a transition
+            // error for a fee that was never owed.
+            if ($this->feeStageAlreadyPassed($enrollment->status, $feeType)) {
+                return ['payment' => null, 'auto_advanced' => true];
+            }
             $this->advanceEnrollment($enrollment, $feeType);
 
             return ['payment' => null, 'auto_advanced' => true];
@@ -92,6 +98,37 @@ class PaymentService
         $fee = $this->fees->forCourse($courseId, $feeType);
 
         return $fee === null || (float) $fee->amount <= 0;
+    }
+
+    /**
+     * Whether the enrollment already sits at or beyond a fee's money stage,
+     * so a waived-fee "pay" is a harmless no-op instead of a transition error.
+     */
+    protected function feeStageAlreadyPassed(string $status, string $feeType): bool
+    {
+        $order = [
+            Enrollment::STATUS_APPLIED,
+            Enrollment::STATUS_APPLICATION_FEE_PAID,
+            Enrollment::STATUS_ADMITTED,
+            Enrollment::STATUS_TUITION_PAID,
+            Enrollment::STATUS_IN_PROGRESS,
+            Enrollment::STATUS_COMPLETED,
+            Enrollment::STATUS_CERTIFICATION,
+            Enrollment::STATUS_CERTIFIED,
+        ];
+        $need = match ($feeType) {
+            CourseFee::FEE_APPLICATION => Enrollment::STATUS_APPLICATION_FEE_PAID,
+            CourseFee::FEE_TUITION => Enrollment::STATUS_TUITION_PAID,
+            CourseFee::FEE_CERTIFICATE => Enrollment::STATUS_CERTIFICATION,
+            default => null,
+        };
+        if ($need === null) {
+            return false;
+        }
+        $pos = array_search($status, $order, true);
+        $needPos = array_search($need, $order, true);
+
+        return $pos !== false && $needPos !== false && $pos >= $needPos;
     }
 
     /**
