@@ -84,6 +84,7 @@ class CourseContentService
             'content_type' => $data['content_type'] ?? Lesson::TYPE_TEXT,
             'content' => $data['content'] ?? null,
             'video_url' => $data['video_url'] ?? null,
+            'video_path' => $data['video_path'] ?? null,
             'duration_minutes' => $data['duration_minutes'] ?? null,
             'sort_order' => $data['sort_order'] ?? $this->nextSort(Lesson::class, $courseId),
             'is_free_preview' => $data['is_free_preview'] ?? false,
@@ -93,11 +94,18 @@ class CourseContentService
 
     public function updateLesson(Lesson $lesson, array $data): Lesson
     {
-        return $this->content->updateLesson($lesson, $data);
+        $old = $lesson->video_path;
+        $updated = $this->content->updateLesson($lesson, $data);
+        if (array_key_exists('video_path', $data) && $data['video_path'] !== $old) {
+            $this->deletePublicFile($old);
+        }
+
+        return $updated;
     }
 
     public function deleteLesson(Lesson $lesson): void
     {
+        $this->deletePublicFile($lesson->video_path);
         $this->content->deleteLesson($lesson);
     }
 

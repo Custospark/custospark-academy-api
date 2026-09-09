@@ -29,6 +29,7 @@ class Lesson extends Model
         'content_type',
         'content',
         'video_url',
+        'video_path',
         'duration_minutes',
         'sort_order',
         'is_free_preview',

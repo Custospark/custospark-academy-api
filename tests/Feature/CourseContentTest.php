@@ -259,8 +259,7 @@ class CourseContentTest extends TestCase
         $this->assertSame('Edited outcome', $updated['description']);
     }
 
-    public function test_assignment_accepts_a_file_and_replaces_it(): void
-    {
+    public function test_assignment_accepts_a_file_and_replaces_it(): void {
         Storage::fake('public');
         $instructor = User::factory()->instructor()->create();
         $course = $this->courseFor($instructor);
@@ -294,5 +293,70 @@ class CourseContentTest extends TestCase
             ->deleteJson("/api/v1/admin/courses/{$course->id}/assignments/{$assignment['id']}")
             ->assertOk();
         Storage::disk('public')->assertMissing($replaced['file_path']);
+    }
+
+    public function test_lesson_accepts_an_uploaded_video_or_a_link(): void
+    {
+        Storage::fake('public');
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+        $section = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/sections", ['title' => 'Module 1'])
+            ->assertCreated()->json('data');
+
+        // Upload path: real video file.
+        $lesson = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/lessons", [
+                'title' => 'Intro video',
+                'content_type' => 'video',
+                'section_id' => $section['id'],
+                'video' => UploadedFile::fake()->create('intro.mp4', 500, 'video/mp4'),
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertNotNull($lesson['video_path']);
+        Storage::disk('public')->assertExists($lesson['video_path']);
+
+        // Link path: URL only, no file.
+        $linked = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/lessons", [
+                'title' => 'External talk',
+                'content_type' => 'video',
+                'section_id' => $section['id'],
+                'video_url' => 'https://youtube.com/watch?v=abc',
+            ])
+            ->assertCreated()
+            ->json('data');
+        $this->assertSame('https://youtube.com/watch?v=abc', $linked['video_url']);
+        $this->assertNull($linked['video_path']);
+
+        // Non-video uploads are rejected.
+        $this->actingAsUser($instructor)
+            ->post(
+                "/api/v1/admin/courses/{$course->id}/lessons",
+                [
+                    'title' => 'Bad upload',
+                    'content_type' => 'video',
+                    'video' => UploadedFile::fake()->create('notes.pdf', 200, 'application/pdf'),
+                ],
+                ['Accept' => 'application/json'],
+            )
+            ->assertStatus(422);
+
+        // Replace removes the old file; delete removes the current one.
+        $replaced = $this->actingAsUser($instructor)
+            ->post("/api/v1/admin/courses/{$course->id}/lessons/{$lesson['id']}", [
+                '_method' => 'PUT',
+                'video' => UploadedFile::fake()->create('intro-v2.mp4', 500, 'video/mp4'),
+            ])
+            ->assertOk()
+            ->json('data');
+        Storage::disk('public')->assertMissing($lesson['video_path']);
+
+        $this->actingAsUser($instructor)
+            ->deleteJson("/api/v1/admin/courses/{$course->id}/lessons/{$lesson['id']}")
+            ->assertOk();
+        Storage::disk('public')->assertMissing($replaced['video_path']);
     }
 }

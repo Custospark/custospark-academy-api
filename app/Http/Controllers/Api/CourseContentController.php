@@ -126,8 +126,13 @@ class CourseContentController extends Controller
 
         $validated = $this->validateLesson($request);
 
+        $videoPath = null;
+        if ($request->hasFile('video')) {
+            $videoPath = $request->file('video')->store('lessons', 'public');
+        }
+
         return response()->json([
-            'data' => $this->serializeLesson($this->content->createLesson($courseId, $validated)),
+            'data' => $this->serializeLesson($this->content->createLesson($courseId, [...$validated, 'video_path' => $videoPath])),
         ], 201);
     }
 
@@ -138,6 +143,10 @@ class CourseContentController extends Controller
         $this->authorizeCourse($lesson->course, $request->user());
 
         $validated = $this->validateLesson($request, true);
+
+        if ($request->hasFile('video')) {
+            $validated['video_path'] = $request->file('video')->store('lessons', 'public');
+        }
 
         return response()->json([
             'data' => $this->serializeLesson($this->content->updateLesson($lesson, $validated)),
@@ -604,6 +613,7 @@ class CourseContentController extends Controller
             'content_type' => ['nullable', 'string', 'in:text,video,article,embed'],
             'content' => ['nullable', 'string'],
             'video_url' => ['nullable', 'string'],
+            'video' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/ogg', 'max:102400'],
             'duration_minutes' => ['nullable', 'integer', 'min:0'],
             'sort_order' => ['nullable', 'integer'],
             'is_free_preview' => ['nullable', 'boolean'],
@@ -738,6 +748,7 @@ class CourseContentController extends Controller
             'content_type' => $lesson->content_type,
             'content' => $lesson->content,
             'video_url' => $lesson->video_url,
+            'video_path' => $lesson->video_path,
             'duration_minutes' => $lesson->duration_minutes,
             'sort_order' => $lesson->sort_order,
             'is_free_preview' => $lesson->is_free_preview,
