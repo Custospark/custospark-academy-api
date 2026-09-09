@@ -185,4 +185,50 @@ class PaymentLifecycleTest extends TestCase
 
         $this->journey('LIFECYCLE COMPLETE: applied -> admitted -> tuition_paid -> completed -> certification -> certified, 275000 collected, journal balanced');
     }
+
+    public function test_zero_fees_flow_through_with_no_payments_at_all(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $learner = User::factory()->learner()->create();
+
+        // No fees configured at all: every money stage is waived.
+        $course = Course::factory()->create([
+            'created_by' => $admin->id,
+            'status' => Course::STATUS_PUBLISHED,
+            'delivery_mode' => Course::DELIVERY_SELF_PACED,
+            'is_self_paced' => true,
+        ]);
+
+        $enrollmentId = $this->actingAsUser($learner)
+            ->postJson('/api/v1/enrollments', ['course_id' => $course->id])
+            ->assertCreated()->json('data.id');
+        $this->journey('zero-fee course: apply auto-advances through waived application+tuition');
+
+        // No payment rows may ever be minted for waived stages.
+        $this->assertDatabaseMissing('payments', ['enrollment_id' => $enrollmentId]);
+
+        // Pay endpoints short-circuit to auto-advance, never the gateway.
+        foreach (['application', 'tuition'] as $fee) {
+            $this->actingAsUser($learner)
+                ->postJson("/api/v1/enrollments/{$enrollmentId}/pay/{$fee}")
+                ->assertOk();
+        }
+        $this->assertDatabaseMissing('payments', ['enrollment_id' => $enrollmentId]);
+        $this->journey('pay calls on waived fees auto-advance with zero payment rows (no gateway invoked)');
+
+        // Empty course: manifest trivially complete, then certificate waives through.
+        $this->actingAsUser($learner)
+            ->postJson("/api/v1/enrollments/{$enrollmentId}/complete")
+            ->assertOk();
+        $this->actingAsUser($learner)
+            ->postJson("/api/v1/enrollments/{$enrollmentId}/pay/certificate")
+            ->assertOk();
+        $this->assertDatabaseMissing('payments', ['enrollment_id' => $enrollmentId]);
+
+        $cert = $this->actingAsUser($learner)
+            ->postJson("/api/v1/enrollments/{$enrollmentId}/certificate")
+            ->assertCreated()->json('data');
+        $this->assertNotEmpty($cert['certificate_reference']);
+        $this->journey("free learner reaches certified ({$cert['certificate_reference']}) with 0 collected");
+    }
 }

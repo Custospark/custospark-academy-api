@@ -242,7 +242,7 @@ class EnrollmentController extends Controller
         }
     }
 
-    /** Admins manage any enrollment; instructors only those on their own courses. */
+    /** Admitting/rejecting learners is an admin-only decision, never instructors. */
     private function authorizeManageEnrollment(int $enrollmentId): void
     {
         $user = request()->user();
@@ -250,21 +250,8 @@ class EnrollmentController extends Controller
             abort(401);
         }
 
-        if ($user->isAdmin()) {
-            return;
-        }
-
-        if (! $user->isInstructor()) {
-            abort(403, 'Only admins and instructors can perform this action.');
-        }
-
-        $enrollment = $this->enrollments->getEnrollment($enrollmentId);
-        if ($enrollment === null) {
-            abort(404, 'Enrollment not found.');
-        }
-
-        if ((int) $enrollment->course?->created_by !== (int) $user->id) {
-            abort(403, 'You can only manage enrollments for courses you created.');
+        if (! $user->isAdmin()) {
+            abort(403, 'Only admins can admit or reject learners.');
         }
     }
 

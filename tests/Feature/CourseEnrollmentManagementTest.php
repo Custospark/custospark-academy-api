@@ -127,20 +127,26 @@ class CourseEnrollmentManagementTest extends TestCase
         $this->actingAsUser($learner)->getJson('/api/v1/admin/courses')->assertForbidden();
     }
 
-    public function test_instructor_cannot_admit_enrollment_on_someone_elses_course(): void
+    public function test_only_admins_can_admit_or_reject(): void
     {
+        $admin = User::factory()->admin()->create();
         $instructorA = User::factory()->instructor()->create();
         $instructorB = User::factory()->instructor()->create();
         $courseB = Course::factory()->published()->create(['created_by' => $instructorB->id]);
 
         $enrollment = $this->enroll($courseB, Enrollment::STATUS_APPLICATION_FEE_PAID, ['application']);
 
+        // Instructors cannot admit - not even on their own courses.
         $this->actingAsUser($instructorA)->postJson("/api/v1/admin/enrollments/{$enrollment->id}/admit")
             ->assertForbidden();
+        $this->actingAsUser($instructorB)->postJson("/api/v1/admin/enrollments/{$enrollment->id}/admit")
+            ->assertForbidden();
+        $this->actingAsUser($instructorB)->postJson("/api/v1/admin/enrollments/{$enrollment->id}/reject")
+            ->assertForbidden();
 
-        // Owning instructor can admit. With no tuition fee configured the
-        // admitted learner is auto-advanced (waived tuition) to tuition_paid.
-        $res = $this->actingAsUser($instructorB)->postJson("/api/v1/admin/enrollments/{$enrollment->id}/admit");
+        // Admin admits. With no tuition fee configured the admitted learner
+        // is auto-advanced (waived tuition) to tuition_paid.
+        $res = $this->actingAsUser($admin)->postJson("/api/v1/admin/enrollments/{$enrollment->id}/admit");
         $res->assertOk();
         $this->assertContains($res->json('data.status'), ['admitted', 'tuition_paid']);
         $this->assertNotNull($res->json('data.admitted_at'));
