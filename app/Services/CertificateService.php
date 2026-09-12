@@ -20,6 +20,7 @@ class CertificateService
         protected EnrollmentStateMachineService $stateMachine,
         protected CertificatePdfService $certificatePdf,
         protected CertificateNotificationService $certificateNotifications,
+        protected EnrollmentNotificationService $notify,
     ) {}
 
     /**
@@ -46,6 +47,7 @@ class CertificateService
             'certificate_reference' => $this->generateReference($course, $user),
             'issued_at' => now(),
         ]);
+        $this->notify->certified($enrollment->fresh() ?? $enrollment, $certificate->certificate_reference);
 
         try {
             $path = 'certificates/'.$this->certificatePdf->filename($certificate).'.pdf';

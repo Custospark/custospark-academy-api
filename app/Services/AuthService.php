@@ -15,6 +15,7 @@ class AuthService
 {
     public function __construct(
         protected UserRepositoryInterface $users,
+        protected EnrollmentNotificationService $notify,
     ) {}
 
     public function register(array $data): User
@@ -25,7 +26,7 @@ class AuthService
             ]);
         }
 
-        return $this->users->create([
+        $user = $this->users->create([
             'name' => $data['name'],
             'email' => strtolower($data['email']),
             'password' => Hash::make($data['password']),
@@ -33,6 +34,9 @@ class AuthService
             'role' => $data['role'] ?? User::ROLE_LEARNER,
             'status' => User::STATUS_ACTIVE,
         ]);
+        $this->notify->welcome($user);
+
+        return $user;
     }
 
     public function attempt(string $email, string $password): User

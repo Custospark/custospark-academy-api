@@ -140,6 +140,7 @@ class TeachingToolkitTest extends TestCase
         [$course] = $this->courseWithQuiz($instructor);
         $learner = User::factory()->learner()->create();
         $this->enroll($learner, $course);
+        $before = collect(Mail::sent(StandardEmail::class))->count();
 
         $data = $this->actingAsUser($instructor)
             ->postJson("/api/v1/admin/courses/{$course->id}/announce", [
@@ -150,7 +151,7 @@ class TeachingToolkitTest extends TestCase
             ->json('data');
 
         $this->assertSame(1, $data['sent']);
-        Mail::assertSent(StandardEmail::class, 1);
+        $this->assertSame(1, collect(Mail::sent(StandardEmail::class))->count() - $before);
 
         // Status filter that matches nobody sends nothing.
         $none = $this->actingAsUser($instructor)

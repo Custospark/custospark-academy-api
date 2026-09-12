@@ -18,6 +18,7 @@ class EnrollmentStateMachineService
 {
     public function __construct(
         protected EnrollmentRepositoryInterface $enrollments,
+        protected EnrollmentNotificationService $notify,
     ) {}
 
     public function apply(int $courseId, int $userId): Enrollment
@@ -31,17 +32,23 @@ class EnrollmentStateMachineService
             throw new DomainException('You have already applied for this course.');
         }
 
-        return $this->enrollments->create([
+        $enrollment = $this->enrollments->create([
             'course_id' => $courseId,
             'user_id' => $userId,
             'status' => Enrollment::STATUS_APPLIED,
             'applied_at' => now(),
         ]);
+        $this->notify->applicationReceived($enrollment->fresh() ?? $enrollment);
+
+        return $enrollment;
     }
 
     public function markApplicationFeePaid(Enrollment $enrollment): Enrollment
     {
-        return $this->transition($enrollment, Enrollment::STATUS_APPLICATION_FEE_PAID);
+        $enrollment = $this->transition($enrollment, Enrollment::STATUS_APPLICATION_FEE_PAID);
+        $this->notify->applicationFeePaid($enrollment);
+
+        return $enrollment;
     }
 
     public function admit(Enrollment $enrollment, ?string $note = null): Enrollment
@@ -50,21 +57,30 @@ class EnrollmentStateMachineService
             throw new DomainException('Application fee must be paid before admission.');
         }
 
-        return $this->enrollments->update($enrollment, [
+        $enrollment = $this->enrollments->update($enrollment, [
             'status' => Enrollment::STATUS_ADMITTED,
             'application_review_note' => $note,
             'admitted_at' => now(),
         ]);
+        $this->notify->admitted($enrollment, $note);
+
+        return $enrollment;
     }
 
     public function markTuitionPaid(Enrollment $enrollment): Enrollment
     {
-        return $this->transition($enrollment, Enrollment::STATUS_TUITION_PAID);
+        $enrollment = $this->transition($enrollment, Enrollment::STATUS_TUITION_PAID);
+        $this->notify->tuitionPaid($enrollment);
+
+        return $enrollment;
     }
 
     public function start(Enrollment $enrollment): Enrollment
     {
-        return $this->transition($enrollment, Enrollment::STATUS_IN_PROGRESS);
+        $enrollment = $this->transition($enrollment, Enrollment::STATUS_IN_PROGRESS);
+        $this->notify->started($enrollment);
+
+        return $enrollment;
     }
 
     public function complete(Enrollment $enrollment): Enrollment
@@ -75,15 +91,21 @@ class EnrollmentStateMachineService
             );
         }
 
-        return $this->enrollments->update($enrollment, [
+        $enrollment = $this->enrollments->update($enrollment, [
             'status' => Enrollment::STATUS_COMPLETED,
             'completed_at' => now(),
         ]);
+        $this->notify->completed($enrollment);
+
+        return $enrollment;
     }
 
     public function markCertificateFeePaid(Enrollment $enrollment): Enrollment
     {
-        return $this->transition($enrollment, Enrollment::STATUS_CERTIFICATION);
+        $enrollment = $this->transition($enrollment, Enrollment::STATUS_CERTIFICATION);
+        $this->notify->certificationReady($enrollment);
+
+        return $enrollment;
     }
 
     public function certify(Enrollment $enrollment, ?Carbon $issuedAt = null): Enrollment
@@ -104,10 +126,13 @@ class EnrollmentStateMachineService
             throw new DomainException('Only applications can be rejected.');
         }
 
-        return $this->enrollments->update($enrollment, [
+        $enrollment = $this->enrollments->update($enrollment, [
             'status' => Enrollment::STATUS_REJECTED,
             'application_review_note' => $note,
         ]);
+        $this->notify->rejected($enrollment, $note);
+
+        return $enrollment;
     }
 
     public function cancel(Enrollment $enrollment): Enrollment
@@ -116,7 +141,10 @@ class EnrollmentStateMachineService
             throw new DomainException('This enrollment can no longer be cancelled.');
         }
 
-        return $this->enrollments->update($enrollment, ['status' => Enrollment::STATUS_CANCELLED]);
+        $enrollment = $this->enrollments->update($enrollment, ['status' => Enrollment::STATUS_CANCELLED]);
+        $this->notify->cancelled($enrollment);
+
+        return $enrollment;
     }
 
     protected function transition(Enrollment $enrollment, string $next): Enrollment
