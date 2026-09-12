@@ -28,6 +28,7 @@ class StandardEmail extends Mailable
         public readonly ?string $logoUrl         = null,
         public readonly bool    $isHtml          = true,
         public readonly array   $fileAttachments = [],
+        public readonly ?string $signature       = null,
     ) {}
 
     public function envelope(): Envelope
@@ -47,6 +48,7 @@ class StandardEmail extends Mailable
                 'tip'      => $this->tip,
                 'logoUrl'  => $this->logoUrl,
                 'isHtml'   => $this->isHtml,
+                'signature' => $this->signature,
             ],
         );
     }

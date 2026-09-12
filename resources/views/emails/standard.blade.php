@@ -159,6 +159,10 @@
                 </div>
             @endif
 
+            @if (! empty($signature))
+                <div class="email-signature" style="margin-top:24px; font-size:14px; line-height:1.7; color:#334155;">{!! $signature !!}</div>
+            @endif
+
             @if (isset($tip) && $tip)
                 <div class="email-tip"><strong>Security tip:</strong> {{ $tip }}</div>
             @endif

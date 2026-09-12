@@ -45,6 +45,7 @@ class EnrollmentNotificationService
                 mailBody: $body,
                 ctaUrl: $ctaUrl,
                 ctaLabel: $ctaLabel,
+                signature: 'Karibu sana to the Academy!<br><br>Warm regards,<br><strong>Opiyo Oscar</strong><br>Founder &amp; CEO,<br>AI &amp; Technology Corporate Strategist<br>Custospark Academy &middot; academy@custospark.com &middot; +256 756 697 871, Custospark Company Ltd.',
             ));
         } catch (\Throwable $e) {
             Log::warning('[EnrollmentNotification] Email delivery failed', [

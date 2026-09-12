@@ -103,6 +103,17 @@ class EnrollmentNotificationsTest extends TestCase
             StandardEmail::class,
             fn ($m) => $m->hasTo('grace@example.com')
         );
+
+        // Every journey mail carries Oscar's personal signature (payment
+        // receipts intentionally do not - they stay transactional).
+        $journey = collect(Mail::sent(StandardEmail::class))->filter(
+            fn ($m) => ! str_contains(strtolower($m->title), 'receipt')
+        );
+        $this->assertNotEmpty($journey);
+        foreach ($journey as $mailable) {
+            $this->assertStringContainsString('Opiyo Oscar', $mailable->signature ?? '');
+            $this->assertStringContainsString('Founder &amp; CEO', $mailable->signature ?? '');
+        }
     }
 
     public function test_reject_and_cancel_notify_with_reapply_paths(): void
