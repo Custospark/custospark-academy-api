@@ -160,7 +160,7 @@
             @endif
 
             @if (! empty($signature))
-                <div class="email-signature" style="margin-top:24px; font-size:14px; line-height:1.7; color:#334155;">{!! $signature !!}</div>
+                <div class="email-signature" style="margin-top:24px; font-size:14px; line-height:1.8; color:#111827;">{!! $signature !!}</div>
             @endif
 
             @if (isset($tip) && $tip)

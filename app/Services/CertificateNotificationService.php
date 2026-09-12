@@ -49,6 +49,7 @@ class CertificateNotificationService
                 ctaLabel: 'View & verify certificate',
                 tip: 'Tip: scan the QR code on your certificate from any smartphone to verify it instantly online.',
                 isHtml: true,
+                signature: StandardEmail::OSCAR_SIGNATURE,
                 fileAttachments: [
                     [
                         'data' => $this->certificatePdf->renderPdf($certificate),

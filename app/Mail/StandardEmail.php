@@ -16,6 +16,9 @@ use Illuminate\Mail\Mailables\Envelope;
  */
 class StandardEmail extends Mailable
 {
+    /** Oscar's personal sign-off for learner-facing status emails. */
+    public const OSCAR_SIGNATURE = 'Karibu sana to the Academy!<br><br>Warm regards,<br><strong>Opiyo Oscar</strong><br>Founder &amp; CEO,<br>AI &amp; Technology Corporate Strategist<br>Custospark Academy<br>academy@custospark.com &middot; +256 756 697 871<br>Custospark Company Ltd.';
+
     /**
      * @param  array<int, array{data: string, name: string, mime: string}>  $fileAttachments
      */
