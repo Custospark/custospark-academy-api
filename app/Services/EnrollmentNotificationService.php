@@ -33,14 +33,15 @@ class EnrollmentNotificationService
         return $base.'/catalog/'.($enrollment->course?->slug ?? '').$path;
     }
 
-    protected function send(User $user, string $subject, string $body, ?string $ctaUrl = null, ?string $ctaLabel = null): void
+    protected function send(User $user, string $subject, string $body, ?string $ctaUrl = null, ?string $ctaLabel = null, ?string $emailOverride = null): void
     {
-        if ($user->email === null || $user->email === '') {
+        $to = $emailOverride ?? $user->email;
+        if ($to === null || $to === '') {
             return;
         }
 
         try {
-            Mail::to($user->email)->send(new StandardEmail(
+            Mail::to($to)->send(new StandardEmail(
                 title: $subject,
                 mailBody: $body,
                 ctaUrl: $ctaUrl,
@@ -227,8 +228,11 @@ class EnrollmentNotificationService
         );
     }
 
-    public function certified(Enrollment $enrollment, string $reference): void
+    public function certified(Enrollment $enrollment, string $reference, ?string $to = null, bool $send = true): void
     {
+        if (! $send) {
+            return;
+        }
         $user = $this->learnerOf($enrollment);
         if ($user === null) {
             return;
@@ -241,6 +245,7 @@ class EnrollmentNotificationService
             "Hi {$first},<br><br>Congratulations, you are now <strong>certified</strong> in {$course}. Reference <strong>{$reference}</strong> - anyone can verify it online in seconds.",
             rtrim((string) config('app.frontend_url'), '/').'/certificates',
             'View certificate',
+            $to,
         );
     }
 

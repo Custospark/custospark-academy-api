@@ -34,9 +34,8 @@ class CertificatePdfService
             'issuedAt' => $certificate->issued_at,
             'verifyUrl' => $this->verifyUrl($certificate),
             'logoDataUri' => $this->pdf->roundedLogoDataUri(),
-            'qrDataUri' => $this->qr->dataUri(
+            'qrDataUri' => $this->qr->brandedDataUri(
                 $this->verifyUrl($certificate),
-                'qrm',
                 10,
             ),
         ];

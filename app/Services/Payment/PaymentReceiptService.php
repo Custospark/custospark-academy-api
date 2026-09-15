@@ -96,6 +96,7 @@ class PaymentReceiptService
                     $payment->paid_at?->format('j F Y') ?? 'today',
                 ),
                 isHtml: true,
+                signature: StandardEmail::OSCAR_SIGNATURE,
                 fileAttachments: [
                     ['data' => $this->renderPdf($payment), 'name' => $this->filename($payment).'.pdf', 'mime' => 'application/pdf'],
                 ],

@@ -26,8 +26,14 @@ class CertificateService
     /**
      * Issue a certificate for a completed, certification-stage enrollment and
      * generate its professional PDF (stored as pdf_path on the certificate).
+     * When $mailTo is set, the certificate PDF email goes to that address
+     * instead of the learner (local test previews). When $notifyCertified is
+     * false, the standalone certified notice is skipped (legacy issues where
+     * the learner only receives the certificate + receipt). When
+     * $referenceTag is set (e.g. 'LEG'), it replaces the user part of the
+     * reference so Registry can spot legacy certificates at a glance.
      */
-    public function issue(Enrollment $enrollment, User $user): Certificate
+    public function issue(Enrollment $enrollment, User $user, ?string $mailTo = null, bool $notifyCertified = true, ?string $referenceTag = null): Certificate
     {
         if ($enrollment->status !== Enrollment::STATUS_CERTIFICATION) {
             throw new DomainException('Certificate fee must be paid and course completed before issuance.');
@@ -44,10 +50,10 @@ class CertificateService
             'enrollment_id' => $enrollment->id,
             'user_id' => $user->id,
             'course_id' => $course->id,
-            'certificate_reference' => $this->generateReference($course, $user),
+            'certificate_reference' => $this->generateReference($course, $user, $referenceTag),
             'issued_at' => now(),
         ]);
-        $this->notify->certified($enrollment->fresh() ?? $enrollment, $certificate->certificate_reference);
+        $this->notify->certified($enrollment->fresh() ?? $enrollment, $certificate->certificate_reference, $mailTo, $notifyCertified);
 
         try {
             $path = 'certificates/'.$this->certificatePdf->filename($certificate).'.pdf';
@@ -60,7 +66,7 @@ class CertificateService
             ]);
         }
 
-        $this->certificateNotifications->email($certificate);
+        $this->certificateNotifications->email($certificate, $mailTo);
 
         return $certificate;
     }
@@ -115,12 +121,14 @@ class CertificateService
         ];
     }
 
-    protected function generateReference(Course $course, User $user): string
+    protected function generateReference(Course $course, User $user, ?string $tag = null): string
     {
         $coursePart = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $course->slug), 0, 4) ?: 'CRS');
-        $userPart = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', (string) $user->id), 0, 4));
+        $midPart = $tag !== null && $tag !== ''
+            ? strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $tag), 0, 4))
+            : strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', (string) $user->id), 0, 4));
         $suffix = strtoupper(substr(bin2hex(random_bytes(3)), 0, 4));
 
-        return "CSA-{$coursePart}-{$userPart}-{$suffix}";
+        return "CSA-{$coursePart}-{$midPart}-{$suffix}";
     }
 }
