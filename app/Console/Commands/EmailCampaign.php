@@ -161,9 +161,9 @@ class EmailCampaign extends Command
     /** Greeting uses the first name token (CSV stores full names). */
     protected function firstName(string $name): string
     {
-        $tokens = preg_split('/\s+/', trim($name));
-        $first = is_array($tokens) && $tokens !== [] ? $tokens[0] : '';
-        $first = trim($first, "\xEF\xBB\xBF\u{200B}\u{FEFF} \t\n\r\0\x0B");
+        $clean = trim((string) preg_replace('/[\p{Cc}\p{Cf}\x{00AD}]/u', '', $name));
+        $tokens = preg_split('/\s+/', $clean);
+        $first = is_array($tokens) && $tokens !== [] ? (string) $tokens[0] : '';
 
         return $first !== '' ? $first : 'there';
     }
