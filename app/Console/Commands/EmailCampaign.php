@@ -263,5 +263,6 @@ class EmailCampaign extends Command
     private function writeLog($fh, string $email, string $name, string $status, string $error): void
     {
         fputcsv($fh, [$email, $name, $status, $error, now()->toIso8601String()]);
+        fflush($fh);
     }
 }
