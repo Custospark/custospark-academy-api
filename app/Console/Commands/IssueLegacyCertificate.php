@@ -26,12 +26,13 @@ use Illuminate\Support\Str;
  *
  *   php artisan certificate:legacy-issue --name="Obace Peterson" \
  *     --email=petersonobace@gmail.com --course=data-science-fundamentals \
- *     --awarded=2026-02-18 --rename-to="Data Science" --cert-amount=50000 \
- *     --send-to=opiyooscar414@gmail.com
+ *     --awarded=2026-02-18 --paid=2026-09-13 --rename-to="Data Science" \
+ *     --cert-amount=50000 --send-to=opiyooscar414@gmail.com
  *
  * - Renames the course title (slug untouched so URLs keep working).
  * - Creates the learner account (random temp password, printed once).
- * - Records the offline UGX certificate-fee payment (manual, paid_at=awarded).
+ * - Records the offline UGX certificate-fee payment (manual, paid_at=--paid,
+ *   reference LEG-CERT-<paiddate>).
  * - Records a certification-stage enrollment silently (no journey spam).
  * - Issues via CertificateService (certificate PDF email only - no certified
  *   notice, per Registry instruction).
@@ -47,7 +48,8 @@ class IssueLegacyCertificate extends Command
         {--name= : Learner full name}
         {--email= : Learner email address}
         {--course= : Course slug}
-        {--awarded= : Award date (Y-m-d)}
+        {--awarded= : Certificate award date (Y-m-d)}
+        {--paid= : Payment date (Y-m-d), defaults to --awarded}
         {--rename-to= : Optional new course title (slug kept)}
         {--cert-amount=50000 : Offline certificate fee paid (UGX)}
         {--send-to= : Optional test inbox - all mail goes here, learner gets nothing}
@@ -64,6 +66,7 @@ class IssueLegacyCertificate extends Command
         $email = strtolower(trim((string) $this->option('email')));
         $slug = trim((string) $this->option('course'));
         $awardedRaw = trim((string) $this->option('awarded'));
+        $paidRaw = trim((string) $this->option('paid'));
         $renameTo = trim((string) $this->option('rename-to'));
         $sendTo = strtolower(trim((string) $this->option('send-to')));
         $presetPassword = (string) $this->option('password');
@@ -93,6 +96,13 @@ class IssueLegacyCertificate extends Command
             $awarded = Carbon::parse($awardedRaw)->startOfDay();
         } catch (\Throwable) {
             $this->error('Provide --awarded as a valid date (Y-m-d, e.g. 2026-02-18).');
+
+            return self::FAILURE;
+        }
+        try {
+            $paid = $paidRaw !== '' ? Carbon::parse($paidRaw)->startOfDay() : $awarded;
+        } catch (\Throwable) {
+            $this->error('Provide --paid as a valid date (Y-m-d, e.g. 2026-09-13).');
 
             return self::FAILURE;
         }
@@ -185,8 +195,8 @@ class IssueLegacyCertificate extends Command
         }
 
         // Offline certificate-fee payment (cash/manual, already collected).
-        // Recorded directly as paid so the receipt carries the real award
-        // date and no gateway/state-machine mail fires mid-flow.
+        // Recorded directly as paid at the real payment date so the receipt
+        // carries it, with no gateway/state-machine mail firing mid-flow.
         $payment = Payment::query()
             ->where('enrollment_id', $enrollment->id)
             ->where('fee_type', CourseFee::FEE_CERTIFICATE)
@@ -201,8 +211,8 @@ class IssueLegacyCertificate extends Command
                 'currency' => $fee?->currency ?? 'UGX',
                 'status' => Payment::STATUS_PAID,
                 'method' => Payment::METHOD_MANUAL,
-                'reference' => 'LEG-CERT-'.$awarded->format('Ymd').'-'.strtoupper(Str::random(4)),
-                'paid_at' => $awarded,
+                'reference' => 'LEG-CERT-'.$paid->format('Ymd').'-'.strtoupper(Str::random(4)),
+                'paid_at' => $paid,
                 'meta' => ['legacy' => true, 'recorded_by' => 'Academy Registry', 'note' => 'Offline certificate fee collected before platform onboarding.'],
             ]);
             PaymentJournal::create([
