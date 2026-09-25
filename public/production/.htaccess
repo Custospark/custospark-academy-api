@@ -13,6 +13,11 @@
   # Handle client-side routing
   RewriteBase /
 
+  # Main domain must never serve this folder (absolute /assets only resolve
+  # on the subdomain) - bounce main-domain hits to the subdomain.
+  RewriteCond %{HTTP_HOST} ^(www\.)?custospark\.com$ [NC]
+  RewriteRule ^(.*)$ https://academy.custospark.com/$1 [R=301,L]
+
   # Don't rewrite files or directories that exist
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
