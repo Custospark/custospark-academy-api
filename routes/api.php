@@ -35,7 +35,7 @@ Route::prefix('v1')->group(function () {
         // Own account: profile + security (all roles).
         Route::put('account/profile', [AccountController::class, 'updateProfile']);
         Route::put('account/password', [AccountController::class, 'updatePassword']);
-        Route::post('account/avatar', [AccountController::class, 'uploadAvatar']);
+        Route::post('account/avatar', [AccountController::class, 'uploadAvatar'])->middleware('upload.timeout');
 
         Route::post('enrollments', [EnrollmentController::class, 'apply']);
         Route::get('enrollments/mine', [EnrollmentController::class, 'mine']);
@@ -63,7 +63,7 @@ Route::prefix('v1')->group(function () {
 
         // Learner course actions: submissions, attempts, progress
         Route::get('courses/{courseId}/content', [LearnerContentController::class, 'content']);
-        Route::post('courses/{courseId}/submit/{type}/{typeId}', [LearnerContentController::class, 'submit']);
+        Route::post('courses/{courseId}/submit/{type}/{typeId}', [LearnerContentController::class, 'submit'])->middleware('upload.timeout');
         Route::post('courses/{courseId}/attempt/{type}/{typeId}', [LearnerContentController::class, 'submitAttempt']);
         Route::post('courses/{courseId}/lessons/{lessonId}/progress', [LearnerContentController::class, 'markLesson']);
         Route::get('courses/{courseId}/progress', [LearnerContentController::class, 'progress']);
@@ -111,37 +111,39 @@ Route::prefix('v1')->group(function () {
             Route::post('courses/{courseId}/sections', [CourseContentController::class, 'storeSection']);
             Route::put('courses/{courseId}/sections/{sectionId}', [CourseContentController::class, 'updateSection']);
             Route::delete('courses/{courseId}/sections/{sectionId}', [CourseContentController::class, 'destroySection']);
-            Route::post('courses/{courseId}/lessons', [CourseContentController::class, 'storeLesson']);
-            Route::put('courses/{courseId}/lessons/{lessonId}', [CourseContentController::class, 'updateLesson']);
+            Route::post('courses/{courseId}/lessons', [CourseContentController::class, 'storeLesson'])->middleware('upload.timeout');
+            Route::put('courses/{courseId}/lessons/{lessonId}', [CourseContentController::class, 'updateLesson'])->middleware('upload.timeout');
             Route::delete('courses/{courseId}/lessons/{lessonId}', [CourseContentController::class, 'destroyLesson']);
             Route::post('courses/{courseId}/outcomes', [CourseContentController::class, 'storeOutcome']);
             Route::put('courses/{courseId}/outcomes/{outcomeId}', [CourseContentController::class, 'updateOutcome']);
             Route::delete('courses/{courseId}/outcomes/{outcomeId}', [CourseContentController::class, 'destroyOutcome']);
-            Route::post('courses/{courseId}/resources', [CourseContentController::class, 'storeResource']);
-            Route::put('courses/{courseId}/resources/{resourceId}', [CourseContentController::class, 'updateResource']);
+            Route::post('courses/{courseId}/resources', [CourseContentController::class, 'storeResource'])->middleware('upload.timeout');
+            Route::put('courses/{courseId}/resources/{resourceId}', [CourseContentController::class, 'updateResource'])->middleware('upload.timeout');
             Route::delete('courses/{courseId}/resources/{resourceId}', [CourseContentController::class, 'destroyResource']);
             Route::post('courses/{courseId}/quizzes', [CourseContentController::class, 'storeQuiz']);
             Route::put('courses/{courseId}/quizzes/{quizId}', [CourseContentController::class, 'updateQuiz']);
             Route::delete('courses/{courseId}/quizzes/{quizId}', [CourseContentController::class, 'destroyQuiz']);
-            Route::post('courses/{courseId}/exercises', [CourseContentController::class, 'storeExercise']);
-            Route::put('courses/{courseId}/exercises/{exerciseId}', [CourseContentController::class, 'updateExercise']);
+            Route::post('courses/{courseId}/exercises', [CourseContentController::class, 'storeExercise'])->middleware('upload.timeout');
+            Route::put('courses/{courseId}/exercises/{exerciseId}', [CourseContentController::class, 'updateExercise'])->middleware('upload.timeout');
             Route::delete('courses/{courseId}/exercises/{exerciseId}', [CourseContentController::class, 'destroyExercise']);
-            Route::post('courses/{courseId}/exams', [CourseContentController::class, 'storeExam']);
-            Route::put('courses/{courseId}/exams/{examId}', [CourseContentController::class, 'updateExam']);
+            Route::post('courses/{courseId}/exams', [CourseContentController::class, 'storeExam'])->middleware('upload.timeout');
+            Route::put('courses/{courseId}/exams/{examId}', [CourseContentController::class, 'updateExam'])->middleware('upload.timeout');
             Route::delete('courses/{courseId}/exams/{examId}', [CourseContentController::class, 'destroyExam']);
-            Route::post('courses/{courseId}/assignments', [CourseContentController::class, 'storeAssignment']);
-            Route::put('courses/{courseId}/assignments/{assignmentId}', [CourseContentController::class, 'updateAssignment']);
+            Route::post('courses/{courseId}/assignments', [CourseContentController::class, 'storeAssignment'])->middleware('upload.timeout');
+            Route::put('courses/{courseId}/assignments/{assignmentId}', [CourseContentController::class, 'updateAssignment'])->middleware('upload.timeout');
             Route::delete('courses/{courseId}/assignments/{assignmentId}', [CourseContentController::class, 'destroyAssignment']);
 
             // Bulk multiple-choice upload: Excel template + filled-file import.
             Route::get('courses/{courseId}/questions/template', [CourseContentController::class, 'templateQuestions']);
             Route::post('courses/{courseId}/{kind}/{parentId}/questions/import', [CourseContentController::class, 'importQuestions'])
-                ->whereIn('kind', ['quiz', 'exercise', 'exam']);
+                ->whereIn('kind', ['quiz', 'exercise', 'exam'])
+                ->middleware('upload.timeout');
 
             // Bulk instructor results: template + filled-file import.
             Route::get('courses/{courseId}/results/template', [CourseContentController::class, 'templateResults']);
             Route::post('courses/{courseId}/{kind}/{parentId}/results/import', [CourseContentController::class, 'importResults'])
-                ->whereIn('kind', ['exam', 'exercise', 'assignment']);
+                ->whereIn('kind', ['exam', 'exercise', 'assignment'])
+                ->middleware('upload.timeout');
             Route::put('courses/{courseId}/submissions/{submissionId}/grade', [CourseContentController::class, 'gradeSubmission']);
         });
     });
