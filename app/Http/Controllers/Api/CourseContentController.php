@@ -183,7 +183,7 @@ class CourseContentController extends Controller
         $this->authorizeCourse($course, $request->user());
 
         $validated = $request->validate([
-            'description' => ['required', 'string'],
+            'description' => ['required', 'string', 'max:60000'],
             'sort_order' => ['nullable', 'integer'],
         ]);
 
@@ -210,7 +210,7 @@ class CourseContentController extends Controller
         $this->authorizeCourse($outcome->course, $request->user());
 
         $validated = $request->validate([
-            'description' => ['sometimes', 'required', 'string'],
+            'description' => ['sometimes', 'required', 'string', 'max:60000'],
             'sort_order' => ['sometimes', 'integer'],
         ]);
 
