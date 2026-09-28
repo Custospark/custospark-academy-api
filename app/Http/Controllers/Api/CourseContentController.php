@@ -22,6 +22,7 @@ use App\Services\LearnerWorkService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CourseContentController extends Controller
 {
@@ -129,6 +130,8 @@ class CourseContentController extends Controller
 
         $validated = $this->validateLesson($request);
 
+        $validated['video_url'] = $this->normalizeUrl($validated['video_url'] ?? null, 'video_url');
+
         $videoPath = null;
         if ($request->hasFile('video')) {
             $videoPath = $request->file('video')->store('lessons', 'public');
@@ -150,6 +153,10 @@ class CourseContentController extends Controller
         $this->authorizeCourse($lesson->course, $request->user());
 
         $validated = $this->validateLesson($request, true);
+
+        if (array_key_exists('video_url', $validated)) {
+            $validated['video_url'] = $this->normalizeUrl($validated['video_url'], 'video_url');
+        }
 
         if ($request->hasFile('video')) {
             $validated['video_path'] = $request->file('video')->store('lessons', 'public');
@@ -242,6 +249,8 @@ class CourseContentController extends Controller
             $filePath = $request->file('file')->store('resources', 'public');
         }
 
+        $validated['url'] = $this->normalizeUrl($validated['url'] ?? null, 'url');
+
         return response()->json([
             'data' => $this->serializeResource($this->content->createResource($courseId, [
                 ...$validated,
@@ -268,6 +277,10 @@ class CourseContentController extends Controller
 
         if ($request->hasFile('file')) {
             $validated['file_path'] = $request->file('file')->store('resources', 'public');
+        }
+
+        if (array_key_exists('url', $validated)) {
+            $validated['url'] = $this->normalizeUrl($validated['url'], 'url');
         }
 
         return response()->json([
@@ -668,6 +681,36 @@ class CourseContentController extends Controller
         }
 
         return $request->validate($rules);
+    }
+
+    /**
+     * Normalize an instructor-pasted link so learners can actually open it.
+     * Adds a missing https:// scheme, passes embed codes (<iframe>) through
+     * untouched, and rejects dangerous schemes (javascript:, data:, ...) with
+     * a 422 instead of storing an unopenable or unsafe href.
+     */
+    protected function normalizeUrl(?string $url, string $field): ?string
+    {
+        if ($url === null) {
+            return null;
+        }
+        $url = trim($url);
+        if ($url === '' || str_contains($url, '<')) {
+            return $url === '' ? null : $url;
+        }
+        if (str_starts_with($url, '//')) {
+            return 'https:'.$url;
+        }
+        if (preg_match('#^([a-zA-Z][a-zA-Z0-9+.-]*):#', $url, $matches) === 1) {
+            $scheme = strtolower($matches[1]);
+            if (! in_array($scheme, ['http', 'https'], true)) {
+                throw ValidationException::withMessages([$field => 'Enter a valid http(s) link.']);
+            }
+
+            return $url;
+        }
+
+        return 'https://'.$url;
     }
 
     protected function validateQuiz(Request $request, bool $partial = false): array

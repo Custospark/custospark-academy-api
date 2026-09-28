@@ -218,6 +218,55 @@ class CourseContentTest extends TestCase
         $this->assertDatabaseMissing('resources', ['id' => $resource['id']]);
     }
 
+    public function test_resource_link_without_scheme_is_saved_openable(): void
+    {
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+
+        $resource = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/resources", [
+                'title' => 'VSCode Download',
+                'type' => 'link',
+                'url' => 'code.visualstudio.com/download',
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertSame('https://code.visualstudio.com/download', $resource['url']);
+        $this->assertSame('https://code.visualstudio.com/download', $resource['file_path']);
+    }
+
+    public function test_resource_link_with_dangerous_scheme_is_rejected(): void
+    {
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+
+        $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/resources", [
+                'title' => 'Sneaky',
+                'type' => 'link',
+                'url' => 'javascript:alert(1)',
+            ])
+            ->assertStatus(422);
+    }
+
+    public function test_lesson_video_link_without_scheme_is_saved_openable(): void
+    {
+        $instructor = User::factory()->instructor()->create();
+        $course = $this->courseFor($instructor);
+
+        $lesson = $this->actingAsUser($instructor)
+            ->postJson("/api/v1/admin/courses/{$course->id}/lessons", [
+                'title' => 'Setup Tools',
+                'content_type' => 'video',
+                'video_url' => 'youtube.com/watch?v=abc',
+            ])
+            ->assertCreated()
+            ->json('data');
+
+        $this->assertSame('https://youtube.com/watch?v=abc', $lesson['video_url']);
+    }
+
     public function test_exercise_accepts_a_paper_file(): void
     {
         Storage::fake('public');
