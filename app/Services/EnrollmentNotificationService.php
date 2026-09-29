@@ -41,13 +41,25 @@ class EnrollmentNotificationService
         }
 
         try {
-            Mail::to($to)->send(new StandardEmail(
+            // Deliver via the raw message technique (explicit from + rendered
+            // HTML): the Mailable pipeline is silently filtered downstream
+            // while this path reaches inboxes. Template and signature stay.
+            $html = (new StandardEmail(
                 title: $subject,
                 mailBody: $body,
                 ctaUrl: $ctaUrl,
                 ctaLabel: $ctaLabel,
                 signature: StandardEmail::OSCAR_SIGNATURE,
-            ));
+            ))->render();
+            Mail::send([], [], function ($message) use ($to, $subject, $html) {
+                $message->to($to);
+                $message->subject($subject);
+                $message->from(
+                    (string) config('mail.from.address'),
+                    (string) config('mail.from.name', 'Custospark Academy')
+                );
+                $message->html($html);
+            });
         } catch (\Throwable $e) {
             Log::warning('[EnrollmentNotification] Email delivery failed', [
                 'user_id' => $user->id,
