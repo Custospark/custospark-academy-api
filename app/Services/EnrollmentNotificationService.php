@@ -173,6 +173,55 @@ class EnrollmentNotificationService
         );
     }
 
+    /**
+     * Study-while-you-pay invite for `applied` learners: materials are open
+     * for the grace window (MATERIALS_GRACE_DAYS from applied_at) while they
+     * arrange the application fee.
+     */
+    public function graceAccess(Enrollment $enrollment): void
+    {
+        $user = $this->learnerOf($enrollment);
+        if ($user === null) {
+            return;
+        }
+        $first = $this->firstName($user);
+        $course = $enrollment->course?->title ?? 'your course';
+        $days = (int) config('academy.materials_grace_days', 7);
+        $start = $enrollment->applied_at ?? $enrollment->created_at;
+        $deadline = $start !== null
+            ? \Carbon\Carbon::parse($start)->addDays($days)->format('j M Y')
+            : "in {$days} days";
+        $fee = $this->money($this->feeAmount($enrollment, 'application'));
+        $feeLine = $fee !== ''
+            ? "Your application fee is <strong>{$fee}</strong> - "
+            : '';
+        $this->send(
+            $user,
+            "Start learning {$course} today - {$days} days free access",
+            "Hi {$first},<br><br>Good news - your learning materials for <strong>{$course}</strong> are open right now, and you have <strong>{$days} days</strong> (until {$deadline}) to study while you arrange payment.<br><br>{$feeLine}pay any time from My Courses so your access never breaks.",
+            $this->courseUrl($enrollment),
+            'Open my course',
+        );
+    }
+
+    /** Encouragement for learners who already paid and are still learning. */
+    public function keepLearning(Enrollment $enrollment): void
+    {
+        $user = $this->learnerOf($enrollment);
+        if ($user === null) {
+            return;
+        }
+        $first = $this->firstName($user);
+        $course = $enrollment->course?->title ?? 'your course';
+        $this->send(
+            $user,
+            "Keep going - we are proud of your progress in {$course}",
+            "Hi {$first},<br><br>Your fees for <strong>{$course}</strong> are settled and your progress is on record - we are happy with how far you have come. Keep learning: finish every lesson, attempt each assessment, and your certificate will follow.",
+            $this->courseUrl($enrollment),
+            'Continue learning',
+        );
+    }
+
     public function started(Enrollment $enrollment): void
     {
         $user = $this->learnerOf($enrollment);

@@ -147,6 +147,12 @@ def build_content(env_name, app_key=''):
               'PESAPAL_IPN_ID'):
         if k in secrets and secrets[k]:
             lines.append(f'{k}={q(secrets[k])}')
+    # Learning-materials access policy (applied-learner grace window). Carried
+    # from local .env so staging/production can differ from .env.example
+    # defaults without hand-editing server files.
+    for k in ('MATERIALS_REQUIRE_APPLICATION_FEE', 'MATERIALS_GRACE_DAYS'):
+        if k in secrets and secrets[k]:
+            lines.append(f'{k}={q(secrets[k])}')
     # Payment gateway is LIVE on both environments (sandbox is local dev only).
     # Callback + IPN URLs must be public per-env endpoints - the config-file
     # localhost defaults would send payers (and PesaPal) nowhere.
