@@ -287,4 +287,67 @@ class EnrollmentFlowTest extends TestCase
                 ->assertOk();
         }
     }
+
+    public function test_applied_learners_can_open_materials_by_default(): void
+    {
+        [, $course] = $this->adminCourse();
+        $learner = $this->learner();
+        Enrollment::factory()->create([
+            'course_id' => $course->id,
+            'user_id' => $learner->id,
+            'status' => Enrollment::STATUS_APPLIED,
+        ]);
+
+        // Default policy (flag off): unpaid application never blocks materials.
+        $this->actingAsUser($learner)
+            ->getJson("/api/v1/courses/{$course->id}/content")
+            ->assertOk()
+            ->assertJsonPath('data.materials_locked', false);
+    }
+
+    public function test_materials_flag_gives_grace_then_blocks_applied_learners(): void
+    {
+        config(['academy.materials_require_application_fee' => true, 'academy.materials_grace_days' => 7]);
+        [, $course] = $this->adminCourse();
+        $learner = $this->learner();
+        Enrollment::factory()->create([
+            'course_id' => $course->id,
+            'user_id' => $learner->id,
+            'status' => Enrollment::STATUS_APPLIED,
+            'applied_at' => now(),
+        ]);
+
+        // Inside the grace window: open, with a deadline attached.
+        $this->actingAsUser($learner)
+            ->getJson("/api/v1/courses/{$course->id}/content")
+            ->assertOk()
+            ->assertJsonPath('data.materials_locked', false)
+            ->assertJsonStructure(['data' => ['materials_grace_until']]);
+
+        // Grace lapsed (applied 10 days ago): locked until they pay.
+        $oldLearner = $this->learner();
+        Enrollment::factory()->create([
+            'course_id' => $course->id,
+            'user_id' => $oldLearner->id,
+            'status' => Enrollment::STATUS_APPLIED,
+            'applied_at' => now()->subDays(10),
+        ]);
+        $this->actingAsUser($oldLearner)
+            ->getJson("/api/v1/courses/{$course->id}/content")
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Pay the application fee to access learning materials.');
+
+        // Paying the application fee unlocks the materials.
+        $enrollmentId = Enrollment::query()
+            ->where('course_id', $course->id)
+            ->where('user_id', $oldLearner->id)
+            ->value('id');
+        $this->actingAsUser($oldLearner)
+            ->postJson("/api/v1/enrollments/{$enrollmentId}/pay/application")
+            ->assertOk();
+        $this->actingAsUser($oldLearner)
+            ->getJson("/api/v1/courses/{$course->id}/content")
+            ->assertOk()
+            ->assertJsonPath('data.materials_locked', false);
+    }
 }

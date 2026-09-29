@@ -38,3 +38,12 @@
   reused from the Custosell academy cohort list).
 - Poster stored at `public/images/custospark_academy_two_day_left_poster.png`
   (renamed from the double-dot source filename).
+
+## 2026-09-29 - Materials access policy flag (grace window)
+- `MATERIALS_REQUIRE_APPLICATION_FEE` (.env, default false) + `MATERIALS_GRACE_DAYS`
+  (default 7) in `config/academy.php`. When on, `applied` learners study freely
+  until `applied_at + grace days`, then get 403 (`Pay the application fee to
+  access learning materials.`) on learner content endpoints until they pay.
+- `GET content` returns `materials_locked` + `materials_grace_until`; the
+  learner detail page swaps tabs for a pay-to-unlock notice (with pay action).
+- Covered by `EnrollmentFlowTest` (grace open, lapsed lock, pay-to-unlock).

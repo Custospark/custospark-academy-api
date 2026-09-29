@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AssessmentAttempt;
 use App\Models\Assignment;
 use App\Models\Course;
+use App\Models\Enrollment;
 use App\Models\Exam;
 use App\Models\Exercise;
 use App\Models\Lesson;
@@ -38,12 +39,18 @@ class LearnerContentController extends Controller
     public function content(Request $request, string|int $courseId): JsonResponse
     {
         $courseId = $this->courseKey($courseId);
-        $this->requireEnrolled($courseId, $request->user());
+        $enrollment = $this->requireEnrolled($courseId, $request->user());
 
         $course = $this->content->fullCourse($courseId);
 
         return response()->json([
-            'data' => $this->serializeLearnerCourse($course, (int) $request->user()->id),
+            'data' => array_merge(
+                $this->serializeLearnerCourse($course, (int) $request->user()->id),
+                [
+                    'materials_locked' => $this->materialsLocked($enrollment),
+                    'materials_grace_until' => $this->materialsGraceUntil($enrollment)?->toIso8601String(),
+                ],
+            ),
         ]);
     }
 
@@ -157,19 +164,59 @@ class LearnerContentController extends Controller
         return Course::resolveByKeyOrFail($courseId)->id;
     }
 
-    protected function requireEnrolled(string|int $courseId, $user): void
+    protected function requireEnrolled(string|int $courseId, $user): ?Enrollment
     {
         if ($user === null) {
             abort(401);
         }
 
         if ($user->isAdmin() || $user->isInstructor()) {
-            return;
+            return null;
         }
 
-        if ($this->enrollments->findByCourseAndUser($courseId, (int) $user->id) === null) {
+        $enrollment = $this->enrollments->findByCourseAndUser($courseId, (int) $user->id);
+        if ($enrollment === null) {
             abort(403, 'You must be enrolled in this course.');
         }
+
+        if ($this->materialsLocked($enrollment)) {
+            abort(403, 'Pay the application fee to access learning materials.');
+        }
+
+        return $enrollment;
+    }
+
+    /**
+     * True when policy requires the application fee first, this enrollment
+     * is still stuck at `applied`, and its study grace window has lapsed.
+     * Staff (null enrollment) are never locked.
+     */
+    protected function materialsLocked(?Enrollment $enrollment): bool
+    {
+        $until = $this->materialsGraceUntil($enrollment);
+
+        return $until !== null && now()->greaterThan($until);
+    }
+
+    /**
+     * End of the study-while-you-pay window, or null when no lock can ever
+     * apply (flag off, staff, or past `applied`). Frontend uses it to show
+     * how long unpaid access lasts.
+     */
+    protected function materialsGraceUntil(?Enrollment $enrollment): ?\Carbon\CarbonInterface
+    {
+        if (! (bool) config('academy.materials_require_application_fee')) {
+            return null;
+        }
+        if ($enrollment === null || $enrollment->status !== Enrollment::STATUS_APPLIED) {
+            return null;
+        }
+        $start = $enrollment->applied_at ?? $enrollment->created_at;
+        if ($start === null) {
+            return null;
+        }
+
+        return \Carbon\Carbon::parse($start)->addDays((int) config('academy.materials_grace_days', 7));
     }
 
     protected function serializeLearnerCourse(\App\Models\Course $course, int $userId): array
